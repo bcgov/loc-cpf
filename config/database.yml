@@ -52,8 +52,17 @@ development:
 # for a full overview on how database connection configuration can be specified.
 #
 production:
-  primary:
+  primary: &primary_production
     <<: *default
     database: cpf-database
     username: cpf-user
     password: <%= ENV["DATABASE_PASSWORD"] %>
+
+  cache:
+    <<: *primary_production
+
+  queue:
+    <<: *primary_production
+
+  cable:
+    <<: *primary_production

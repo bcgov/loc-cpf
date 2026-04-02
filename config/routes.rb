@@ -1,3 +1,9 @@
+begin
+  require "sidekiq/web"
+rescue LoadError
+  # Sidekiq Web not available in this runtime
+end
+
 Rails.application.routes.draw do
   devise_for :users
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
@@ -11,5 +17,5 @@ Rails.application.routes.draw do
 
   resources :jobs, only: [:index, :show, :create, :destroy, :update]
 
-  mount Sidekiq::Web => "/sidekiq"
+  mount Sidekiq::Web => "/sidekiq" if defined?(Sidekiq::Web)
 end

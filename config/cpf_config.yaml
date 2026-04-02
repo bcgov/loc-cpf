@@ -1,0 +1,56 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: cpf-configs
+data:
+  cpf_config.yaml: |-
+    api_providers:
+      - name: "BC Address Geocoder"
+        host: "https://geocoder.api.gov.bc.ca/"
+        endpoints:
+          - name: "Geocode"
+            path: "addresses"
+            default_params:
+              outputFormat: "json"
+              addressString: ""
+              locationDescriptor: "any"
+              maxResults: 1
+              interpolation: "adaptive"
+              echo: "true"
+              brief: "false"
+              autoComplete: "false"
+              exactSpelling: "false"
+              fuzzyMatch: "false"
+              setBack: 0
+              outputSRS: 4326
+              minScore: 1
+              matchPrecision: ""
+              matchPrecisionNot: ""
+              siteName: ""
+              unitDesignator: "--"
+              unitNumber: ""
+              unitNumberSuffix: ""
+              civicNumber: ""
+              civicNumberSuffix: ""
+              streetName: ""
+              streetType: ""
+              streetDirection: "--"
+              streetQualifier: ""
+              localityName: ""
+              provinceCode: "BC"
+              localities: ""
+              notLocalities: ""
+              bbox: ""
+              centre: ""
+              maxDistance: ""
+              extrapolate: "--"
+              pacelPoint: ""
+          - name: "Geocoder occupants"
+            path: "occupants/addresses"
+            default_params:
+              outputFormat: "json"
+              maxResults: 1
+              matchPrecision: "exact"
+      - name: "BC Route Planner"
+        host: "https://api.provider2.com"
+

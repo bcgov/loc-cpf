@@ -1,0 +1,31 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  type: 
+  jid: MyString
+  success: false
+  started_at: 2026-03-31 15:43:59
+  completed_at: 2026-03-31 15:43:59
+  scheduled_at: 2026-03-31 15:43:59
+  reschedued_jid: MyString
+  attempt_count: 1
+  master_job_id: 1
+  input_file_path: MyString
+  output_file_path: MyString
+  user_id: 1
+  notification_email: MyString
+
+two:
+  type: 
+  jid: MyString
+  success: false
+  started_at: 2026-03-31 15:43:59
+  completed_at: 2026-03-31 15:43:59
+  scheduled_at: 2026-03-31 15:43:59
+  reschedued_jid: MyString
+  attempt_count: 1
+  master_job_id: 1
+  input_file_path: MyString
+  output_file_path: MyString
+  user_id: 1
+  notification_email: MyString

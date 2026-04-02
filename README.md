@@ -23,3 +23,7 @@ Things you may want to cover:
 
 * ...
 # loc-cpf
+
+Run SeaweedFS locally:
+
+./seaweedfs/weed mini -dir=./seaweedfs/data

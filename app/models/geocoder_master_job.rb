@@ -1,0 +1,2 @@
+class GeocoderMasterJob < MasterJob
+end

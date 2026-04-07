@@ -2,7 +2,7 @@ class ApplicationController < ActionController::API
   include ActionController::MimeResponds
 
   before_action :log_request_headers
-  before_action :authenticate_user!
+  before_action :authenticate_user!, except: [:status]
 
   def authenticate_user!
     token = request.headers["Authorization"]&.split(" ")&.last

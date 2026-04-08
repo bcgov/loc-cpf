@@ -15,6 +15,16 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   root "application#status"
 
+  get "profile" => "users#show", as: :user_profile
+
+  resources :users, only: [:show] do
+    collection do
+      get "tokens"
+      post "tokens", action: :create_token
+      delete "tokens/:id", action: :revoke_token, as: :revoke_token
+    end
+  end
+
   resources :jobs, only: [:index, :show, :create, :destroy, :update]
 
   mount Sidekiq::Web => "/sidekiq" if defined?(Sidekiq::Web)

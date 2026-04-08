@@ -1,20 +1,22 @@
-class ApplicationController < ActionController::API
+class ApplicationController < ActionController::Base
   include ActionController::MimeResponds
 
   before_action :log_request_headers
   before_action :authenticate_user!, except: [:status]
 
   def authenticate_user!
-    token = request.headers["Authorization"]&.split(" ")&.last
-    return render_unauthorized unless token.present?
-
-    user_token = Token.find_by(token: token)
-    if user_token&.isValid?
-      @current_user = user_token.user
+    if Rails.env.development?
+      # use a dummy user for development
+      user = User.find_or_create_the_dummy_user
     else
-      render_unauthorized
+      token = request.headers["HTTP_X_USERINFO"]
+      return render_unauthorized unless token.present?
+
+      user = User.find_or_create_from_kong(token)
+      return render_unauthorized unless user.present?
     end
-  end
+    sign_in(user, store: false)
+  end 
 
   def status
     respond_to do |format|

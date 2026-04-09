@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_07_233000) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_08_123000) do
   create_table "jobs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "type"
     t.string "jid"
@@ -36,6 +36,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_07_233000) do
     t.timestamp "expired_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["value"], name: "index_tokens_on_value"
   end
 
   create_table "users", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|

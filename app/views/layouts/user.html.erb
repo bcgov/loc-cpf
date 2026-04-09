@@ -1,10 +1,45 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>LOC Concurrent Process Platform</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="turbo-cache-control" content="no-preview">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    <style>
+      /* Make sure body and html elements fill the full height of the screen */
+      html, body {
+        height: 100%;
+      }
+      /* Use flexbox to push the footer to the bottom */
+      .content {
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      footer {
+        margin-top: auto; /* Push the footer to the bottom */
+      }
+    </style>
   </head>
 
   <body>
-    <%= yield %>
+    <div class="content">
+      <%= render partial: "layouts/main_navbar" %>
+      <div class="container main-container">
+        <p class="notice"><%= notice %></p>
+        <p class="alert" style="color: red;"><%= alert %></p>
+        <%= yield %>
+      </div>
+      
+      <footer class="bg-dark text-white text-center text-lg-start">
+        <div class="text-center p-3 bg-secondary">
+          © 2026 Government of British Columbia.
+        </div>
+      </footer>
+    </div>
   </body>
 </html>

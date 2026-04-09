@@ -17,7 +17,7 @@
         </li>
       </ul>
       <% if current_user.present? %>
-      <%= link_to "Welcome #{current_user.idir_username}", user_profile_path, class: "btn btn-outline-secondary" %>
+      <%= link_to "#{current_user.idir_username}", user_profile_path, class: "btn btn-outline-secondary" %>
       <% end %>
     </div>
   </div>

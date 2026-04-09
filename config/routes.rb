@@ -25,7 +25,11 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :jobs, only: [:index, :show, :create, :destroy, :update]
+  # resources :jobs, only: [:index, :show, :create, :destroy, :update]
+
+  namespace :api do
+    resources :jobs, only: [:index, :show, :create, :destroy, :update]
+  end
 
   mount Sidekiq::Web => "/sidekiq" if defined?(Sidekiq::Web)
 end

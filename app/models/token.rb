@@ -10,7 +10,7 @@ class Token < ApplicationRecord
   end
 
   def isValid?
-    self.expire_at.nil? || self.expire_at > Time.now
+    self.expired_at.nil? || self.expired_at > Time.now
   end
 
   private

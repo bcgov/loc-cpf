@@ -66,3 +66,8 @@ end
 gem "devise", "~> 5.0"
 
 gem "sidekiq", "~> 8.1"
+
+# avoid install Node.js and a JS runtime on the server, which is required by the 'uglifier' gem for asset compression, 
+# but we don't actually need asset compression in this app since it's mostly an API service. 
+# If you do want to use 'uglifier' for asset compression, you can remove this gem and install Node.js on the server.
+gem "mini_racer"

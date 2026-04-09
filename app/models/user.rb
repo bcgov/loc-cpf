@@ -10,6 +10,7 @@ class User < ApplicationRecord
          authentication_keys: [:client_id]
 
   has_many :tokens, dependent: :destroy
+  has_many :jobs, dependent: :destroy
 
   validates :email, allow_blank: true, uniqueness: false
   validates :client_id, allow_blank: false, uniqueness: true

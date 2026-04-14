@@ -1,9 +1,20 @@
 class Api::JobsController < Api::ApplicationController
+  DEFAULT_PAGE_SIZE = 25
+
   # list all master jobs for the user
   def index
-    @master_jobs = @user.master_jobs.order(created_at: :desc)
+    page = params[:page].to_i
+    page = 1 if page < 1
+
+    page_size = params[:page_size].to_i
+    page_size = DEFAULT_PAGE_SIZE if page_size < 1
+
+    @master_jobs = @user.master_jobs.order(created_at: :asc).page(page).per(page_size)
+
     render json: {
-      master_jobs: @master_jobs.as_json(only: [:id, :status, :created_at, :updated_at])
+      jobs: @master_jobs.map(&:to_user_json),
+      total_count: @master_jobs.total_count,
+      total_pages: @master_jobs.total_pages
     }
   end
 

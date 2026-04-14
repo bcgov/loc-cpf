@@ -72,3 +72,6 @@ gem "sidekiq", "~> 8.1"
 gem "mini_racer"
 
 gem "aws-sdk-s3", require: false
+
+# Pagination functionality for APIs and ActiveRecord collections
+gem 'kaminari'

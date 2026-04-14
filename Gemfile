@@ -19,7 +19,6 @@ gem "stimulus-rails"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
 
-gem "bootsnap", require: false
 gem 'bootstrap', '~> 5.3.3'
 gem 'dartsass-sprockets'
 gem "autoprefixer-rails"
@@ -71,3 +70,5 @@ gem "sidekiq", "~> 8.1"
 # but we don't actually need asset compression in this app since it's mostly an API service. 
 # If you do want to use 'uglifier' for asset compression, you can remove this gem and install Node.js on the server.
 gem "mini_racer"
+
+gem "aws-sdk-s3", require: false

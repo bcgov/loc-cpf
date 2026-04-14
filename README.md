@@ -26,4 +26,10 @@ Things you may want to cover:
 
 Run SeaweedFS locally:
 
+
+export AWS_ACCESS_KEY_ID=local_test_key_id
+export AWS_SECRET_ACCESS_KEY=local_test_secret
+export AWS_S3_BUCKET=cpf
+
 ./seaweedfs/weed mini -dir=./seaweedfs/data
+S3 Endpoint http://localhost:8333

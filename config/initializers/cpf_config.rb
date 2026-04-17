@@ -18,3 +18,4 @@ CPF_CONFIG =
   end
 
 API_PROVIDERS = CPF_CONFIG["api_providers"] || {}
+WORKER_OPTIONS = CPF_CONFIG["worker_options"] || {}

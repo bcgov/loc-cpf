@@ -31,5 +31,5 @@ Rails.application.routes.draw do
     resources :jobs, only: [:index, :show, :create, :destroy, :update]
   end
 
-  mount Sidekiq::Web => "/sidekiq" if defined?(Sidekiq::Web)
+  mount Sidekiq::Web => "/queue" if defined?(Sidekiq::Web)
 end

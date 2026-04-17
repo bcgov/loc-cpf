@@ -18,7 +18,7 @@ class Job < ApplicationRecord
   end
 
   def set_default_values
-    self.attempt_count ||= 0
+    self.attempt_count ||= 1
     self.notification_email ||= user.email
   end
 

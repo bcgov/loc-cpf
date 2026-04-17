@@ -54,7 +54,11 @@ class Api::JobsController < Api::ApplicationController
       endpoint = API_PROVIDERS[0]["endpoints"].find { |e| e["name"] == "Geocode" }
       raise Exception, "Geocode endpoint config not found" unless endpoint
 
-      @geocoder_master_job = @user.geocoder_master_jobs.new(endpoint_name: endpoint_name)
+      job_class_name = endpoint["job_class"].presence || "GeocoderMasterJob"
+      job_class = job_class_name.safe_constantize
+      raise Exception, "Invalid job class: #{job_class_name}" unless job_class
+
+      @geocoder_master_job = job_class.new(user: @user, endpoint_name: endpoint_name)
 
       options = endpoint["default_params"].dup
       if params[:options].present?
@@ -90,7 +94,14 @@ class Api::JobsController < Api::ApplicationController
       @geocoder_master_job.input_data_content_type = params[:input_data_content_type].presence || "text/csv"
       @geocoder_master_job.output_data_content_type = params[:output_data_content_type].presence || "text/csv"
 
-      if params[:input_data_url].present?
+      if params[:input_data].present?
+        csv_content = params[:input_data].to_s
+        @geocoder_master_job.input_file.attach(
+          io: StringIO.new(csv_content),
+          filename: "input_#{Time.current.to_i}.csv",
+          content_type: @geocoder_master_job.input_data_content_type || "text/csv"
+        )
+      elsif params[:input_data_url].present?
         url = params[:input_data_url]
         @geocoder_master_job.input_file.attach(io: URI.open(url), filename: File.basename(URI.parse(url).path))
       elsif params[:input_data_file].present?
@@ -100,6 +111,7 @@ class Api::JobsController < Api::ApplicationController
       end
 
       @geocoder_master_job.save!
+      @geocoder_master_job.enqueue_sidekiq_job
       render json: { id: @geocoder_master_job.id }, status: :created
     rescue Exception => e
       render json: { error: "Failed to create job: #{e.message}" }, status: :unprocessable_entity

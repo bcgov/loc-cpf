@@ -9,13 +9,13 @@ data = {
     "options[name1]": "value1",
     "options[name2]": "value2",
     "options[name3]": "value3",
-    "input_data_content_type": "text/csv",
-    "output_data_content_type": "text/csv"
+    "input_data_content_type": "text/tsv",
+    "output_data_content_type": "text/tsv"
 }
 
 # File upload
 files = {
-    "input_data_file": open("example.csv", "rb")  # change to your file path
+    "input_data_file": open("example.tsv", "rb")  # change to your file path
 }
 
 response = requests.post(url, data=data, files=files)

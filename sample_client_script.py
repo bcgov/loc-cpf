@@ -1,10 +1,11 @@
 import requests
 
 url = "http://0.0.0.0:3000/api/jobs"  # change to your endpoint
+url = "https://cpf-dev.apps.gold.devops.gov.bc.ca/api/jobs"  # change to your endpoint
 
 # Rails-style nested params
 data = {
-    "api_token": "544d6e7d663774b9e243a52e5ef7a718",
+    "api_token": "96b37aff7c3ebd0a029c0530488cecae",
     "endpoint_name": "Geocode",
     "options[name1]": "value1",
     "options[name2]": "value2",

@@ -17,7 +17,7 @@ ocp:
   secret_access_key: <%= ENV["AWS_SECRET_ACCESS_KEY"] %>
   region: us-east-1
   bucket: <%= ENV["AWS_S3_BUCKET"] %>
-  endpoint: http://localhost:8333
+  endpoint: <%= ENV["AWS_S3_ENDPOINT"] %>
   force_path_style: true
 
 # Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)

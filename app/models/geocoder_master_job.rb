@@ -12,8 +12,8 @@ class GeocoderMasterJob < MasterJob
       total_rows: total_rows,
       total_worker_jobs: total_jobs,
       completed_worker_jobs: completed_jobs,
-      input_file_url: input_file.attached? ? Rails.application.routes.url_helpers.rails_blob_url(input_file, disposition: "attachment", only_path: true) : nil,
-      output_file_url: output_file.attached? ? Rails.application.routes.url_helpers.rails_blob_url(output_file, disposition: "attachment", only_path: true) : nil,
+      input_file_url: attachment_download_url(input_file),
+      output_file_url: attachment_download_url(output_file),
       options: self.api_options
     }
   end
@@ -56,5 +56,28 @@ class GeocoderMasterJob < MasterJob
     )
 
     update_columns(result_created_at: Time.current)
+  end
+
+  private
+
+  def attachment_download_url(attachment)
+    return nil unless attachment.attached?
+
+    helpers = Rails.application.routes.url_helpers
+    opts = public_url_options
+
+    if opts[:host].present?
+      helpers.rails_storage_proxy_url(attachment, disposition: "attachment", **opts)
+    else
+      helpers.rails_storage_proxy_path(attachment, disposition: "attachment")
+    end
+  end
+
+  def public_url_options
+    app_cfg = CPF_CONFIG["app_options"] || {}
+    host = app_cfg["public_url_host"].presence || ENV["APP_PUBLIC_HOST"].presence || Rails.application.routes.default_url_options[:host]
+    protocol = app_cfg["public_url_protocol"].presence || ENV["APP_PUBLIC_PROTOCOL"].presence || Rails.application.routes.default_url_options[:protocol]
+
+    { host: host, protocol: protocol }.compact
   end
 end

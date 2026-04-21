@@ -18,7 +18,7 @@ class MasterJob < Job
       elsif total_jobs.present? && completed_jobs.present? && completed_jobs == total_jobs
         "finalizing"
       else
-        "completed"
+        "queued"
       end
     elsif started_at.present?
       reach_max_attempts? ? "terminated" : "in_progress"

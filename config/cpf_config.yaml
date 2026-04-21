@@ -97,6 +97,6 @@ data:
     worker_options:
       max_worker_row_count: 1000
     app_options:
-      public_url_host: "cpf-dev.apps.gold.devops.gov.bc.ca"
+      public_url_host: "cpf-dev.apps.gov.bc.ca"
       public_url_protocol: "https"
 

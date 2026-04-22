@@ -105,4 +105,4 @@ If the URL is relative, prepend app host and include `api_token` when requesting
 
 ## OpenAPI YAML
 
-See `/home/runner/work/loc-cpf/loc-cpf/api_params.yaml` for a full parameter and schema definition.
+See `api_params.yaml` for a full parameter and schema definition.

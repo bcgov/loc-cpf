@@ -9,31 +9,16 @@ This document explains how to use the LOC-CPF app APIs.
 2. Complete SSO login.
 3. After login, your user session is active.
 
-## 2) Create API token
+## 2) Create API token (browser only)
 
-With an active SSO session, create a token from:
-- UI/API route: `POST /users/tokens`
-- Token list route: `GET /users/tokens`
-- Revoke route: `DELETE /users/tokens/:id`
+Token creation requires an authenticated SSO session and must be done in the browser.
+**API creation of tokens is not supported.**
 
-### Example (create token)
-```bash
-curl -X POST "https://cpf-dev.apps.gov.bc.ca/users/tokens.json" \
-  -H "Accept: application/json" \
-  -H "Cookie: <your_sso_session_cookie>"
-```
+1. After SSO login, visit: `https://cpf-dev.apps.gov.bc.ca/users/tokens`
+2. Click **Create token** and copy the generated token value.
+3. Optionally set an expiry date.
 
-Response example:
-```json
-{
-  "id": 1,
-  "value": "<api_token>",
-  "expired_at": null,
-  "created_at": "2026-04-22T18:00:00.000Z"
-}
-```
-
-> Note: token management endpoints require an authenticated SSO session.
+> Token management (viewing and revoking existing tokens) is also available at the same URL.
 
 ## 3) Submit jobs and fetch results using API token
 

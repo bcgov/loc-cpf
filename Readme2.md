@@ -11,7 +11,7 @@ This document explains user flow, app configuration, work processing logic, and 
 3. After login, your user session is active.
 
 ### 1.2 Create API token (browser only)
-Token creation requires an authenticated SSO session and must be done in the browser.  
+Token creation requires an authenticated SSO session and must be done in the browser.
 **API creation of tokens is not supported.**
 
 1. After SSO login, visit: `https://cpf-dev.apps.gov.bc.ca/users/tokens`
@@ -81,7 +81,7 @@ Response contains status and output URL when ready:
 `GET /api/jobs?api_token=<api_token>&page=1&page_size=25`
 
 #### Download output file
-Use `output_file_url` from the job payload.  
+Use `output_file_url` from the job payload.
 If the URL is relative, prepend app host and include `api_token` when requesting.
 
 ## 2) App configurations
@@ -172,7 +172,7 @@ Typical statuses observed from model logic:
 - Master status becomes `failed` if any worker job is failed.
 
 ### 4.2 Potential ways to handle failures (not fully implemented yet)
-- Add automatic retries with backoff for transient errors (network/geocoder/Valkey outages).
+- Add automatic retries with back-off for transient errors (network/geocoder/Valkey outages).
 - Separate retry policies for:
   - master fan-out failures,
   - worker API call failures,

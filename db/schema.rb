@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_17_210030) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_22_120000) do
   create_table "active_storage_attachments", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -61,6 +61,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_17_210030) do
     t.integer "completed_jobs"
     t.datetime "result_created_at"
     t.integer "total_rows"
+    t.string "error_message"
     t.index ["master_job_id"], name: "index_jobs_on_master_job_id"
   end
 

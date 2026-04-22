@@ -2,19 +2,14 @@ class MasterJob < Job
   has_many :worker_jobs, -> { where(type: ["WorkerJob", "GeocoderWorkerJob"]) }, class_name: "Job", foreign_key: :master_job_id, dependent: :destroy
 
   def get_status
-    # note: master job is only considered completed when all worker jobs are completed
-    # and if any worker job failed, the master job is considered failed. In addition,
-    # master job should also check if the final result file is generated successfully
-    if completed_at.present? # this means the master job has run to generate worker jobs
+    if completed_at.present? # master job has finished splitting/creating worker jobs
       if worker_jobs.any? { |job| job.get_status == "failed" }
-        if success.nil?
-          update_column(:success, false)
-        end
+        update_column(:success, false) if success.nil?
         "failed"
-      elsif output_file.attached?
+      elsif result_created_at.present?
         "completed"
       elsif total_jobs.present? && completed_jobs.present? && completed_jobs < total_jobs
-        "in progress"
+        "in_progress"
       elsif total_jobs.present? && completed_jobs.present? && completed_jobs == total_jobs
         "finalizing"
       else

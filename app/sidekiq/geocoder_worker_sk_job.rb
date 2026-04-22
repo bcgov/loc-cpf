@@ -6,6 +6,8 @@ require "uri"
 class GeocoderWorkerSkJob
   include Sidekiq::Job
 
+  ERROR_HEADERS = ["sequenceNumber", "yourId", "addressString", "errorMessage"].freeze
+
   sidekiq_options retry: false, queue: :geocoder_worker_sk_job, backtrace: false
 
   def perform(job_id)
@@ -26,6 +28,20 @@ class GeocoderWorkerSkJob
       job.update!(jid: self.jid)
     end
 
+    # fail fast if master job already failed
+    if job.master_job_id.present?
+      master_job = Job.find_by(id: job.master_job_id)
+      if master_job&.success == false
+        job.update!(
+          started_at: Time.now,
+          completed_at: Time.now,
+          success: false,
+          error_message: "worker_skipped: master job failed".truncate(255)
+        )
+        return
+      end
+    end
+
     ### perform the geocoding task
     begin
       endpoint = API_PROVIDERS[0]["endpoints"].find { |e| e["name"] == "Geocode" }
@@ -42,63 +58,57 @@ class GeocoderWorkerSkJob
       delimiter = job.input_data_content_type.to_s.downcase.include?("tsv") ? "\t" : ","
       csv = CSV.parse(input_content, headers: true, col_sep: delimiter)
 
-      # step 2: perform geocoding and collect output rows
-      sequence_number = 0
-      total_row_count = 0
       output_rows = []
+      error_rows = []
 
+      # step 2: perform geocoding and collect output rows
       csv.each do |row|
         next if row.fields.all?(&:blank?)
 
-        total_row_count += 1
-        sequence_number = row[0] # assuming the first column is sequence number, if not, we can also just use the index of the row in the CSV
+        sequence_number = row["N"].presence || row[0]
         your_id = row["yourId"]
-
-        params = normalize_api_options(job.api_options)
-        default_params = endpoint["default_params"] || {}
-
-        csv.headers.each do |header|
-          next unless default_params.key?(header)
-          value = row[header]
-          params[header] = value unless value.blank?
-        end
-
-        next if params["addressString"].blank?
+        address_string = row["addressString"]
 
         begin
+          params = normalize_api_options(job.api_options)
+          default_params = endpoint["default_params"] || {}
+
+          csv.headers.each do |header|
+            next unless default_params.key?(header)
+            value = row[header]
+            params[header] = value unless value.blank?
+          end
+
+          address_string = params["addressString"]
+          raise "addressString is blank" if address_string.blank?
+
           result = call_geocoder_api(params)
-          features = result["features"] || []
+          feature = (result["features"] || []).first
+          raise "No geocoding result returned" if feature.blank?
+
+          props = feature["properties"] || {}
+          coords = feature.dig("geometry", "coordinates")
+          location = coords ? "SRID=4326;POINT(#{coords[0]} #{coords[1]})" : nil
+          faults = Array(props["faults"]).map { |f| "#{f["value"]}.#{f["element"]}:#{f["penalty"]}" rescue f.to_s }.join(", ")
           execution_time = result["executionTime"]
 
-          if features.empty?
-            output_rows << build_empty_output_row(output_headers, sequence_number, row["yourId"])
-          else
-            # Note: only take the first feature
-            feature = features.first
-            props = feature["properties"] || {}
-            coords = feature.dig("geometry", "coordinates")
-            location = coords ? "SRID=4326;POINT(#{coords[0]} #{coords[1]})" : nil
-            faults = Array(props["faults"]).map { |f| "#{f["value"]}.#{f["element"]}:#{f["penalty"]}" rescue f.to_s }.join(", ")
-
-            # prepare output row based on output_headers config
-            output_row = output_headers.map do |header|
-              case header
-              when "sequenceNumber" then sequence_number
-              when "resultNumber"   then 1
-              when "yourId"         then your_id
-              when "location"       then location
-              when "faults"         then faults.present? ? "[#{faults}]" : ""
-              when "executionTime"  then execution_time
-              else
-                props[header] || ""
-              end
+          # prepare output row based on output_headers config
+          output_row = output_headers.map do |header|
+            case header
+            when "sequenceNumber" then sequence_number
+            when "resultNumber"   then 1
+            when "yourId"         then your_id
+            when "location"       then location
+            when "faults"         then faults.present? ? "[#{faults}]" : ""
+            when "executionTime"  then execution_time
+            else
+              props[header] || ""
             end
-
-            output_rows << output_row
           end
-        rescue => api_error
-          Rails.logger.warn "Geocoder API failed for row #{sequence_number}: #{api_error.message}"
-          output_rows << build_empty_output_row(output_headers, sequence_number, your_id)
+
+          output_rows << output_row
+        rescue => row_error
+          error_rows << [sequence_number, your_id, address_string, row_error.message.to_s]
         end
       end
 
@@ -114,15 +124,40 @@ class GeocoderWorkerSkJob
         content_type: "text/csv"
       )
 
-      job.update!(completed_at: Time.now, result_created_at: Time.now, success: true, total_rows: total_row_count)
-      
+      if error_rows.any?
+        error_csv = CSV.generate do |out|
+          out << ERROR_HEADERS
+          error_rows.each { |r| out << r }
+        end
+
+        job.error_file.attach(
+          io: StringIO.new(error_csv),
+          filename: "job_#{job.id}_errors.csv",
+          content_type: "text/csv"
+        )
+      else
+        job.error_file.purge if job.error_file.attached?
+      end
+
+      job.update!(
+        completed_at: Time.now,
+        result_created_at: Time.now,
+        success: true,
+        total_rows: output_rows.size + error_rows.size,
+        error_message: (error_rows.any? ? "Worker completed with #{error_rows.size} failed rows" : nil)
+      )
+
       # step 4: update master job's completed_jobs count atomically
       if job.master_job_id.present?
         Job.increment_counter(:completed_jobs, job.master_job_id)
         job.master_job.generate_result_file
       end
     rescue => e
-      job.update!(completed_at: Time.now, success: false)
+      job.update!(
+        completed_at: Time.now,
+        success: false,
+        error_message: "Worker failed: #{e.message}".truncate(255)
+      )
       Rails.logger.error "Error processing Job ID: #{job_id}, error: #{e.message}"
     end
   end

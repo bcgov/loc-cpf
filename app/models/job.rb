@@ -2,6 +2,7 @@ class Job < ApplicationRecord
   belongs_to :user
   has_one_attached :input_file, dependent: :destroy
   has_one_attached :output_file, dependent: :destroy
+  has_one_attached :error_file, dependent: :destroy
 
   before_destroy :purge_attachments
 
@@ -43,5 +44,6 @@ class Job < ApplicationRecord
   def purge_attachments
     input_file.purge if input_file.attached?
     output_file.purge if output_file.attached?
+    error_file.purge if error_file.attached?
   end
 end

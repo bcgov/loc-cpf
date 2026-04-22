@@ -1,4 +1,6 @@
 require "csv"
+require "stringio"
+
 class GeocoderMasterJob < MasterJob
   # after_commit :enqueue_sidekiq_job, on: :create
   # after_commit :generate_result_file_if_ready, on: :update
@@ -14,7 +16,9 @@ class GeocoderMasterJob < MasterJob
       completed_worker_jobs: completed_jobs,
       input_file_url: attachment_download_url(input_file),
       output_file_url: attachment_download_url(output_file),
-      options: self.api_options
+      error_file_url: attachment_download_url(error_file),
+      error_message: error_message,
+      options: api_options
     }
   end
 
@@ -28,6 +32,7 @@ class GeocoderMasterJob < MasterJob
 
   # generate the final output file if all worker jobs are completed, and update the master job's output_file attachment and completed_at timestamp
   def generate_result_file
+    return if self.success === false # if master job already marked as failed, skip result generation
     return if result_created_at.present? && output_file.attached?
     return unless total_jobs.present? && total_jobs != 0 && total_jobs == completed_jobs
 
@@ -55,7 +60,36 @@ class GeocoderMasterJob < MasterJob
       content_type: "text/csv"
     )
 
-    update_columns(result_created_at: Time.current)
+    error_headers = ["sequenceNumber", "yourId", "addressString", "errorMessage"]
+    failed_rows = 0
+    combined_error_csv = CSV.generate do |csv|
+      csv << error_headers
+      worker_jobs.order(:id).each do |worker_job|
+        next unless worker_job.error_file.attached?
+
+        worker_job.error_file.open do |file|
+          CSV.parse(file.read, headers: true).each do |row|
+            values = error_headers.map { |h| row[h] }
+            next if values.all?(&:blank?)
+
+            csv << values
+            failed_rows += 1
+          end
+        end
+      end
+    end
+
+    if failed_rows > 0
+      error_file.attach(
+        io: StringIO.new(combined_error_csv),
+        filename: "job_#{id}_errors.csv",
+        content_type: "text/csv"
+      )
+      update_columns(result_created_at: Time.current, error_message: "Completed with #{failed_rows} failed rows")
+    else
+      error_file.purge if error_file.attached?
+      update_columns(result_created_at: Time.current, error_message: nil)
+    end
   end
 
   private

@@ -31,7 +31,6 @@ class GeocoderMasterSkJob
       end
       job.update!(started_at: Time.now)
 
-      # step 1: stream the input file from ActiveStorage (avoid loading entire file into memory)
       max_rows = WORKER_OPTIONS["max_worker_row_count"].to_i
       raise "Invalid max_worker_row_count: #{max_rows}" if max_rows <= 0
 
@@ -42,32 +41,48 @@ class GeocoderMasterSkJob
       part_index = 1
       headers = nil
       chunk_rows = []
+      pending_worker_jobs = []
 
-      job.input_file.open do |file|
-        CSV.foreach(file.path, headers: true, col_sep: delimiter) do |row|
-          headers ||= row.headers
-          next if row.fields.all?(&:blank?)
+      ActiveRecord::Base.transaction do
+        job.input_file.open do |file|
+          CSV.foreach(file.path, headers: true, col_sep: delimiter) do |row|
+            headers ||= row.headers
+            next if row.fields.all?(&:blank?)
 
-          total_row_count += 1
-          chunk_rows << row
+            total_row_count += 1
+            chunk_rows << row
 
-          if chunk_rows.size >= max_rows
-            create_worker_job_from_rows(job, headers, chunk_rows, part_index, delimiter)
-            worker_job_count += 1
-            part_index += 1
-            chunk_rows = []
+            if chunk_rows.size >= max_rows
+              pending_worker_jobs << create_worker_job_from_rows(job, headers, chunk_rows, part_index, delimiter)
+              worker_job_count += 1
+              part_index += 1
+              chunk_rows = []
+            end
           end
+        end
+
+        if chunk_rows.any?
+          pending_worker_jobs << create_worker_job_from_rows(job, headers, chunk_rows, part_index, delimiter)
+          worker_job_count += 1
         end
       end
 
-      if chunk_rows.any?
-        create_worker_job_from_rows(job, headers, chunk_rows, part_index, delimiter)
-        worker_job_count += 1
-      end
+      job.update!(
+        completed_at: Time.now,
+        success: true,
+        total_jobs: worker_job_count,
+        total_rows: total_row_count,
+        error_message: nil
+      )
 
-      job.update!(completed_at: Time.now, success: true, total_jobs: worker_job_count, total_rows: total_row_count)
+      # enqueue only after all worker jobs are created successfully
+      pending_worker_jobs.each(&:enqueue_sidekiq_job)
     rescue => e
-      job.update!(completed_at: Time.now, success: false)
+      job.update!(
+        completed_at: Time.now,
+        success: false,
+        error_message: "master_failed: #{e.message}".truncate(255)
+      )
       Rails.logger.error "Error processing Job ID: #{job_id}, error: #{e.message}"
     end
   end
@@ -105,7 +120,6 @@ class GeocoderMasterSkJob
       filename: "job_#{job.id}_worker_#{index}.#{ext}",
       content_type: job.input_data_content_type
     )
-    # add worker job to queue
-    worker_job.enqueue_sidekiq_job
+    worker_job
   end
 end

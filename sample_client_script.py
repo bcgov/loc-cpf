@@ -32,6 +32,7 @@ parser.add_argument("--env", choices=["local", "dev", "test", "prod"], default="
 parser.add_argument("--api-token", required=True, help="API token")
 parser.add_argument("--input-file", required=True, help="Local input file path OR input URL")
 parser.add_argument("--output-file", default="geocoder_results.csv", help="Local output file path")
+parser.add_argument("--error-file", default=None, help="Optional local error file path (defaults to <output-file>.errors.csv)")
 parser.add_argument("--max-wait", type=int, default=600, help="Max wait time in seconds")
 parser.add_argument("--poll-interval", type=float, default=2.0, help="Polling interval in seconds")
 args = parser.parse_args()
@@ -86,6 +87,29 @@ while True:
 
 if job_status != "completed":
     raise RuntimeError(f"Job did not complete successfully. Final status: {job_status}")
+
+error_message = job_payload.get("error_message")
+error_url = job_payload.get("error_file_url")
+
+if error_message:
+    log(f"Job completed with warnings: {error_message}")
+
+if error_url:
+    if error_url.startswith("/"):
+        error_url = urljoin(origin, error_url)
+
+    error_file_path = args.error_file or f"{args.output_file}.errors.csv"
+    log(f"Error file found. Downloading from: {error_url}")
+
+    err_resp = requests.get(error_url, params={"api_token": args.api_token}, stream=True, timeout=120)
+    err_resp.raise_for_status()
+
+    with open(error_file_path, "wb") as ef:
+        for chunk in err_resp.iter_content(chunk_size=8192):
+            if chunk:
+                ef.write(chunk)
+
+    log(f"Saved error file to: {error_file_path}")
 
 result_url = job_payload.get("output_file_url")
 if not result_url:

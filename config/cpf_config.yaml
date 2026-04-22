@@ -95,8 +95,8 @@ data:
       - name: "BC Route Planner"
         host: "https://api.provider2.com"
     worker_options:
-      max_worker_row_count: 1000
+      max_worker_row_count: 100
     app_options:
-      public_url_host: "cpf-dev.apps.gov.bc.ca"
-      public_url_protocol: "https"
+      public_url_host: "0.0.0.0:3000"
+      public_url_protocol: "http"
 

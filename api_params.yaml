@@ -1,0 +1,404 @@
+openapi: 3.0.0
+info:
+  title: LOC-CPF Batch Geocoder API
+  version: '0.1'
+  description: |
+    API for batch geocoding jobs.
+    Token management (create/revoke) is done through the browser web UI at /users/tokens
+    after SSO login. API-based token creation is not supported.
+servers:
+  - url: https://cpf-dev.apps.gov.bc.ca
+    description: Development
+  - url: https://cpf-test.apps.gov.bc.ca
+    description: Test
+  - url: https://cpf.apps.gov.bc.ca
+    description: Production
+
+tags:
+  - name: Tokens
+  - name: Jobs
+
+paths:
+  /users/tokens:
+    get:
+      tags: [Tokens]
+      summary: List current user API tokens
+      description: Requires an authenticated SSO browser session. Token creation is not available via API; visit /users/tokens in the browser.
+      responses:
+        '200':
+          description: Token list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+        '401':
+          description: Unauthorized
+
+  /users/tokens/{id}:
+    delete:
+      tags: [Tokens]
+      summary: Revoke API token
+      description: Requires an authenticated SSO browser session.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                required: [message]
+              examples:
+                revoked:
+                  value:
+                    message: Token revoked
+        '401':
+          description: Unauthorized
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/jobs:
+    get:
+      tags: [Jobs]
+      summary: List jobs
+      parameters:
+        - $ref: '#/components/parameters/ApiToken'
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 25
+      responses:
+        '200':
+          description: Job list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Job'
+                  total_count:
+                    type: integer
+                  total_pages:
+                    type: integer
+                required: [jobs, total_count, total_pages]
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [Jobs]
+      summary: Create geocoding job
+      description: Submit geocoding input and receive a job ID.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - api_token
+                - endpoint_name
+              properties:
+                api_token:
+                  type: string
+                endpoint_name:
+                  type: string
+                  enum: [Geocode]
+                options:
+                  description: |
+                    Optional geocoder options. Can be submitted as object-like form fields
+                    (for example options[maxResults]=1) or as name/value entries.
+                  oneOf:
+                    - type: object
+                      additionalProperties: true
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            oneOf:
+                              - type: string
+                              - type: number
+                              - type: boolean
+                input_data_content_type:
+                  type: string
+                  default: text/csv
+                  enum: [text/csv, text/tsv]
+                output_data_content_type:
+                  type: string
+                  default: text/csv
+                  enum: [text/csv, text/tsv]
+                input_data:
+                  type: string
+                  description: Raw CSV/TSV text content.
+                input_data_url:
+                  type: string
+                  format: uri
+                input_data_file:
+                  type: string
+                  format: binary
+              description: Provide exactly one of input_data, input_data_url, or input_data_file.
+            examples:
+              file-upload:
+                value:
+                  api_token: your-token
+                  endpoint_name: Geocode
+                  input_data_content_type: text/csv
+                  output_data_content_type: text/csv
+          application/json:
+            schema:
+              type: object
+              required:
+                - api_token
+                - endpoint_name
+              properties:
+                api_token:
+                  type: string
+                endpoint_name:
+                  type: string
+                  enum: [Geocode]
+                options:
+                  oneOf:
+                    - type: object
+                      additionalProperties: true
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            oneOf:
+                              - type: string
+                              - type: number
+                              - type: boolean
+                input_data_content_type:
+                  type: string
+                  default: text/csv
+                output_data_content_type:
+                  type: string
+                  default: text/csv
+                input_data:
+                  type: string
+                input_data_url:
+                  type: string
+                  format: uri
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                required: [id]
+              examples:
+                created:
+                  value:
+                    id: 123
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Failed to create job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Get job status/details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/ApiToken'
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Jobs]
+      summary: Delete a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/ApiToken'
+      responses:
+        '200':
+          description: Job deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                required: [message]
+              examples:
+                deleted:
+                  value:
+                    message: Job deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Failed to delete job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  parameters:
+    ApiToken:
+      name: api_token
+      in: query
+      required: true
+      description: API token value from /users/tokens.
+      schema:
+        type: string
+
+  schemas:
+    Token:
+      type: object
+      properties:
+        id:
+          type: integer
+        value:
+          type: string
+        expired_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - value
+        - created_at
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          description: Typically queued, processing, completed, failed, or terminated.
+        created_at:
+          type: string
+          description: Formatted as YYYY-MM-DD HH:MM:SS.
+        total_rows:
+          type: integer
+          nullable: true
+        total_worker_jobs:
+          type: integer
+          nullable: true
+        completed_worker_jobs:
+          type: integer
+          nullable: true
+        input_file_url:
+          type: string
+          nullable: true
+        output_file_url:
+          type: string
+          nullable: true
+        options:
+          oneOf:
+            - type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  value:
+                    oneOf:
+                      - type: string
+                      - type: number
+                      - type: boolean
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+      required:
+        - id
+        - status
+        - created_at
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

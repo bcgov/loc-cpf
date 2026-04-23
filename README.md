@@ -198,8 +198,12 @@ If a row within a worker job fails to:
 - parse API response,
 
 Then:
-- The specific row is NOT written to the output file.
-- Instead, it is written to the worker job's `error_file` (CSV format) with columns:
+- The row is still written to the worker output file to preserve input order.
+- For failed rows:
+  - `score` is set to `0`
+  - geocoder-derived result fields are left empty
+  - input-related fields (for example sequence/id/address columns) are kept
+- The same row is also written to the worker job's `error_file` (CSV format) with columns:
   - `sequenceNumber` (row identifier)
   - `yourId` (user-supplied ID)
   - `addressString` (the input address that failed)

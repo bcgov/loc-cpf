@@ -108,6 +108,7 @@ class GeocoderWorkerSkJob
 
           output_rows << output_row
         rescue => row_error
+          output_rows << build_failed_output_row(output_headers, row, sequence_number, your_id)
           error_rows << [sequence_number, your_id, address_string, row_error.message.to_s]
         end
       end
@@ -225,5 +226,19 @@ class GeocoderWorkerSkJob
       end
     end
     value.is_a?(Hash) ? value : {}
+  end
+
+  def build_failed_output_row(output_headers, row, sequence_number, your_id)
+    output_headers.map do |header|
+      case header
+      when "sequenceNumber" then sequence_number
+      when "resultNumber"   then 0
+      when "yourId"         then your_id
+      when "score"          then 0
+      else
+        # keep original row value when header exists in input; otherwise empty geocoder result
+        row.header?(header) ? (row[header] || "") : ""
+      end
+    end
   end
 end

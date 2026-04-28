@@ -4,7 +4,7 @@ require "erb"
 
 raw = ERB.new(File.read(Rails.root.join("config", "cpf_config.yaml"))).result
 file = YAML.safe_load(raw, aliases: true) || {}
-if development?
+if Rails.env.development?
   all_configs = file["data"] || {}
   embedded = all_configs["cpf_config.yaml"]
   CPF_CONFIG =

@@ -2,7 +2,7 @@ class ApplicationController < ActionController::Base
   protect_from_forgery prepend: true
   include ActionController::MimeResponds
 
-  before_action :log_request_headers
+  # before_action :log_request_headers
   before_action :authenticate_user!, except: [:status]
 
   def authenticate_user!

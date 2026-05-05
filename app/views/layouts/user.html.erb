@@ -29,9 +29,17 @@
   <body>
     <div class="content">
       <%= render partial: "layouts/main_navbar" %>
-      <div class="container main-container">
-        <p class="notice"><%= notice %></p>
-        <p class="alert" style="color: red;"><%= alert %></p>
+      <% if notice || alert %>
+        <div class="container mt-3">
+          <% if notice %>
+            <p class="alert alert-primary"><%= notice %></p>
+          <% end %>
+          <% if alert %>
+            <p class="alert alert-secondary" style="color: red;"><%= alert %></p>
+          <% end %>
+        </div>
+      <% end %>
+      <div class="container mt-4">
         <%= yield %>
       </div>
       

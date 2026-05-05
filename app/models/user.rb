@@ -15,7 +15,7 @@ class User < ApplicationRecord
   has_many :geocoder_master_jobs, -> { where(type: "GeocoderMasterJob") }, class_name: "Job"
 
   validates :email, allow_blank: true, uniqueness: false
-  validates :client_id, allow_blank: false, uniqueness: true
+  validates :client_id, allow_blank: true, uniqueness: true
 
 
 

@@ -31,5 +31,17 @@ Rails.application.routes.draw do
     resources :jobs, only: [:index, :show, :create, :destroy, :update]
   end
 
+  namespace :admin do
+
+    resources :users, only: [:index, :create, :destroy, :update] do
+      member do
+        get "tokens"
+        post "tokens", action: :create_token
+        delete "tokens/:id", action: :revoke_token, as: :revoke_token
+      end
+    end
+
+  end
+
   mount Sidekiq::Web => "/queue" if defined?(Sidekiq::Web)
 end

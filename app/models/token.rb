@@ -5,8 +5,12 @@ class Token < ApplicationRecord
   before_create :generate_token_value
   validate :user_token_limit_not_exceeded, on: :create
 
+  validates :value, presence: true, uniqueness: true
+
   def generate_token_value
-    self.value = SecureRandom.hex(16)
+    if self.value.blank?
+      self.value = SecureRandom.hex(16)
+    end
   end
 
   def isValid?

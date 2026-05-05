@@ -1,6 +1,17 @@
 class Admin::UsersController < Admin::ApplicationController
+  USERS_PER_PAGE = 10
+
   def index
-    @users = User.order(created_at: :desc).page(params[:page]).per(20)
+    sort_column = params[:sort] || "created_at"
+    sort_direction = params[:direction] || "desc"
+    
+    valid_columns = %w[id display_name email created_at]
+    sort_column = "created_at" unless valid_columns.include?(sort_column)
+    sort_direction = "desc" if sort_direction != "asc"
+
+    @users = User.order("#{sort_column} #{sort_direction}").page(params[:page]).per(USERS_PER_PAGE)
+    @sort_column = sort_column
+    @sort_direction = sort_direction
   end
 
   def tokens

@@ -26,10 +26,10 @@
 <table class="table table-striped table-bordered">
   <thead>
     <tr>
-      <th>ID</th>
-      <th>Username</th>
-      <th>Email</th>
-      <th>Created At</th>
+      <th><%= link_to "ID", admin_users_path(sort: "id", direction: @sort_direction == "asc" && @sort_column == "id" ? "desc" : "asc"), class: "text-decoration-none" %></th>
+      <th><%= link_to "Username", admin_users_path(sort: "display_name", direction: @sort_direction == "asc" && @sort_column == "display_name" ? "desc" : "asc"), class: "text-decoration-none" %></th>
+      <th><%= link_to "Email", admin_users_path(sort: "email", direction: @sort_direction == "asc" && @sort_column == "email" ? "desc" : "asc"), class: "text-decoration-none" %></th>
+      <th><%= link_to "Created At", admin_users_path(sort: "created_at", direction: @sort_direction == "asc" && @sort_column == "created_at" ? "desc" : "asc"), class: "text-decoration-none" %></th>
       <th>Action</th>
     </tr>
   </thead>

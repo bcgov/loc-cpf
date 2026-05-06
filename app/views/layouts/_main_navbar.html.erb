@@ -13,10 +13,10 @@
         <li class="nav-item">
           <%= link_to "Users", admin_users_path, class: "nav-link" %>
         </li>
-        <% end %>
         <li class="nav-item">
-          <%#= link_to "Utilities", utilities_path, class: "nav-link" %>
+          <%= link_to "Jobs", admin_jobs_path, class: "nav-link" %>
         </li>
+        <% end %>
       </ul>
       <% if current_user.present? %>
       <%= link_to "#{current_user.idir_username}", user_profile_path, class: "btn btn-outline-secondary" %>

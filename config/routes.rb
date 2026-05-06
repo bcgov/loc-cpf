@@ -41,6 +41,12 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :jobs, only: [:show, :index, :destroy, :update] do
+      member do
+        get "cancel"
+      end
+    end
+
   end
 
   mount Sidekiq::Web => "/queue" if defined?(Sidekiq::Web)

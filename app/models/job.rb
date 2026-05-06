@@ -39,6 +39,28 @@ class Job < ApplicationRecord
     end
   end
 
+  def is_enqueued_or_scheduled_in_sidekiq?
+    return false if jid.blank?
+    Sidekiq::ScheduledSet.new.find_job(jid).present? || Sidekiq::Queue.new.find_job(jid).present?
+  end
+
+  def cancel!
+    # only allow canceling if job is not completed yet and it is in sidekiq queue or scheduled
+    if completed_at.present?
+      return false
+    end
+
+    if jid.present? && get_status != "scheduled"
+      Sidekiq::ScheduledSet.new.find_job(jid)&.delete || Sidekiq::Queue.new.find_job(jid)&.delete
+    end
+
+    update!(
+      completed_at: Time.now,
+      success: false,
+      error_message: "Job was cancelled"
+    )
+  end
+
   private
 
   def purge_attachments

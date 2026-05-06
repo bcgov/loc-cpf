@@ -1,0 +1,60 @@
+<% job = @job %>
+<% fmt = ->(t) { t.present? ? t.strftime("%Y-%m-%d %H:%M:%S") : "-" } %>
+
+<% if job.is_a?(GeocoderMasterJob) %>
+  <h2 class="mb-2">Geocoder Master Job #<%= job.id %></h2>
+  <p><%= link_to "Back to jobs list", admin_jobs_path, class: " mb-4" %></p>
+
+  <table class="table mb-4">
+    <tbody>
+      <tr><th>ID</th><td><%= job.id %></td></tr>
+      <tr><th>Status</th><td><%= job.get_status %></td></tr>
+      <tr><th>Sidekiq Status</th><td><%= job.respond_to?(:sidekiq_status) ? job.sidekiq_status : "-" %></td></tr>
+      <tr><th>JID</th><td><%= job.jid.presence || "-" %></td></tr>
+      <tr><th>Endpoint</th><td><%= job.endpoint_name %></td></tr>
+      <tr><th>Total Rows</th><td><%= job.total_rows || 0 %></td></tr>
+      <tr><th>Total Worker Jobs</th><td><%= job.total_jobs || 0 %></td></tr>
+      <tr><th>Completed Worker Jobs</th><td><%= job.completed_jobs || 0 %></td></tr>
+      <tr><th>Success</th><td><%= job.success.nil? ? "-" : job.success %></td></tr>
+      <tr><th>Error Message</th><td><%= job.error_message.presence || "-" %></td></tr>
+      <tr><th>Scheduled At</th><td><%= fmt.call(job.scheduled_at) %></td></tr>
+      <tr><th>Started At</th><td><%= fmt.call(job.started_at) %></td></tr>
+      <tr><th>Completed At</th><td><%= fmt.call(job.completed_at) %></td></tr>
+      <tr><th>Result Created At</th><td><%= fmt.call(job.result_created_at) %></td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="mb-4">Worker Jobs</h3>
+  <table class="table table-bordered table-striped mb-4">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Rows</th>
+        <th>Sidekiq Status</th>
+        <th>JID</th>
+        <th>Scheduled At</th>
+        <th>Started At</th>
+        <th>Completed At</th>
+        <th>Success</th>
+        <th>Error Message</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% job.worker_jobs.order(:id).each do |worker| %>
+        <tr>
+          <td><%= worker.id %></td>
+          <td><%= worker.total_rows || 0 %></td>
+          <td><%= worker.respond_to?(:sidekiq_status) ? worker.sidekiq_status : "-" %></td>
+          <td><%= worker.jid.presence || "-" %></td>
+          <td><%= fmt.call(worker.scheduled_at) %></td>
+          <td><%= fmt.call(worker.started_at) %></td>
+          <td><%= fmt.call(worker.completed_at) %></td>
+          <td><%= worker.success.nil? ? "-" : worker.success %></td>
+          <td><%= worker.error_message.presence || "-" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p>Job not found or not a GeocoderMasterJob.</p>
+<% end %>

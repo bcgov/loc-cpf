@@ -65,29 +65,39 @@ class GeocoderWorkerSkJob
       csv.each do |row|
         next if row.fields.all?(&:blank?)
 
-        sequence_number = row["N"].presence || row[0]
-        your_id = row["yourId"]
+        ### For input formats. There are two types of format both are valid csv/tsv format.
+        ### Format 1: There is only one column addressString.
+        ### Format 2: There are multiple columns. addressString is required. sequenceNumber and yourId are optional, 
+        ### other columns can be used as additional parameters for geocoding API
+
+        sequence_number = row["sequenceNumber"].presence || row["N"].presence || ""
+        your_id = row["yourId"] || ""
         address_string = row["addressString"]
 
         begin
-          params = normalize_api_options(job.api_options)
-          default_params = endpoint["default_params"] || {}
-
-          csv.headers.each do |header|
-            next unless default_params.key?(header)
-            value = row[header]
-            params[header] = value unless value.blank?
+          if address_string.blank?
+            raise "addressString is blank"
           end
+
+          default_params = endpoint["default_params"] || {}
+          params = build_geocoder_params(
+            default_params: default_params,
+            api_options: normalize_api_options(job.api_options),
+            row: row,
+            headers: csv.headers
+          )
 
           address_string = params["addressString"]
           raise "addressString is blank" if address_string.blank?
 
           result = call_geocoder_api(params)
+
           feature = (result["features"] || []).first
           raise "No geocoding result returned" if feature.blank?
 
           props = feature["properties"] || {}
           coords = feature.dig("geometry", "coordinates")
+          full_address = props["fullAddress"] || ""
           location = coords ? "SRID=4326;POINT(#{coords[0]} #{coords[1]})" : nil
           faults = Array(props["faults"]).map { |f| "#{f["value"]}.#{f["element"]}:#{f["penalty"]}" rescue f.to_s }.join(", ")
           execution_time = result["executionTime"]
@@ -96,6 +106,7 @@ class GeocoderWorkerSkJob
           output_row = output_headers.map do |header|
             case header
             when "sequenceNumber" then sequence_number
+            when "fullAddress"    then full_address
             when "resultNumber"   then 1
             when "yourId"         then your_id
             when "location"       then location
@@ -226,6 +237,36 @@ class GeocoderWorkerSkJob
       end
     end
     value.is_a?(Hash) ? value : {}
+  end
+
+  def build_geocoder_params(default_params:, api_options:, row:, headers:)
+    defaults = (default_params || {}).each_with_object({}) { |(k, v), out| out[k.to_s] = v }
+    allowed_keys = defaults.keys
+
+    # keep request options not present in CSV headers, but only if allowlisted
+    filtered_api_options = sanitize_allowlisted_params(api_options, allowed_keys)
+    params = defaults.merge(filtered_api_options)
+
+    # CSV values override request/default values when allowlisted and non-blank
+    Array(headers).each do |header|
+      key = header.to_s
+      next unless allowed_keys.include?(key)
+      value = row[header]
+      params[key] = value unless value.blank?
+    end
+
+    params
+  end
+
+  def sanitize_allowlisted_params(source, allowed_keys)
+    return {} unless source.is_a?(Hash)
+
+    source.each_with_object({}) do |(k, v), out|
+      key = k.to_s
+      next unless allowed_keys.include?(key)
+      next if v.nil? || v.to_s.strip.empty?
+      out[key] = v
+    end
   end
 
   def build_failed_output_row(output_headers, row, sequence_number, your_id)

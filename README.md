@@ -86,6 +86,159 @@ Response contains status and output URL when ready:
 Use `output_file_url` from the job payload.
 If the URL is relative, prepend app host and include `api_token` when requesting.
 
+## Final I/O Format
+
+### Input Files
+
+Two input formats are supported: **unstructured** and **structured**.
+
+#### Unstructured Format
+
+The unstructured format contains a single column named `addressString`, which stores address values.
+
+Example:
+
+```csv
+addressString
+"2317 MOODY AVE Kamloops, BC"
+"APT 1 1207 Douglas St, Victoria, BC"
+"525 Superior St, Victoria,BC"
+"4251A ROCKBANK PL, WEST VANCOUVER,BC"
+```
+
+Quotation marks are optional. If quotation marks are used, they must be applied consistently to every data row.
+
+---
+
+#### Structured Format
+
+The structured format includes additional columns.
+
+Required fields:
+- `addressString`
+- `yourId`
+
+Example:
+
+```csv
+yourId,addressString
+A23E4,"2317 MOODY AVE Kamloops, BC"
+BXe33,"APT 1 1207 Douglas St, Victoria, BC"
+```
+
+Additional columns are allowed only if the column name matches one of the **System Default Arguments** listed below.
+Columns not in that allowlist are rejected to prevent unexpected argument injection.
+
+---
+
+### Additional Geocoder API Arguments
+
+API arguments are applied in the following order:
+
+1. System default arguments
+2. Request-specified API options (allowlist only)
+3. Arguments defined in the input data file (column names, allowlist only)
+
+If duplicate parameters exist, later values override earlier ones.
+Any request or input-data argument not present in the System Default Arguments allowlist must be rejected.
+
+#### System Default Arguments
+
+```yaml
+outputFormat: "json"
+addressString: ""
+locationDescriptor: "any"
+maxResults: 1
+interpolation: "adaptive"
+echo: "true"
+brief: "false"
+autoComplete: "false"
+exactSpelling: "false"
+fuzzyMatch: "false"
+setBack: 0
+outputSRS: 4326
+minScore: 1
+matchPrecision: ""
+matchPrecisionNot: ""
+siteName: ""
+unitDesignator: "--"
+unitNumber: ""
+unitNumberSuffix: ""
+civicNumber: ""
+civicNumberSuffix: ""
+streetName: ""
+streetType: ""
+streetDirection: "--"
+streetQualifier: ""
+localityName: ""
+provinceCode: "BC"
+localities: ""
+notLocalities: ""
+bbox: ""
+centre: ""
+maxDistance: ""
+extrapolate: "--"
+parcelPoint: ""
+```
+
+---
+
+### Output File
+
+The output file includes the following fields when available:
+
+- `yourId` (if specified)
+- `sequenceNumber` (if specified)
+- `executionTime`
+- `faults` (if present)
+
+The output may also contain other fields returned by the Geocoder API.
+
+#### Possible Output Fields
+
+```yaml
+- sequenceNumber
+- resultNumber
+- yourId
+- fullAddress
+- intersectionName
+- score
+- matchPrecision
+- precisionPoints
+- faults
+- siteName
+- unitDesignator
+- unitNumber
+- unitNumberSuffix
+- civicNumber
+- civicNumberSuffix
+- streetName
+- streetType
+- isStreetTypePrefix
+- streetDirection
+- isStreetDirectionPrefix
+- streetQualifier
+- localityName
+- localityType
+- electoralArea
+- provinceCode
+- location
+- locationPositionalAccuracy
+- locationDescriptor
+- siteID
+- blockID
+- intersectionID
+- fullSiteDescriptor
+- accessNotes
+- siteStatus
+- siteRetireDate
+- changeDate
+- isOfficial
+- degree
+- executionTime
+- sid
+```
+
 ## 2) App configurations
 
 ### 2.1 MySQL database

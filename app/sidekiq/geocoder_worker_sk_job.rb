@@ -99,7 +99,7 @@ class GeocoderWorkerSkJob
           coords = feature.dig("geometry", "coordinates")
           full_address = props["fullAddress"] || ""
           location = coords ? "SRID=4326;POINT(#{coords[0]} #{coords[1]})" : nil
-          faults = Array(props["faults"]).map { |f| "#{f["value"]}.#{f["element"]}:#{f["penalty"]}" rescue f.to_s }.join(", ")
+          faults = format_faults(props["faults"])
           execution_time = result["executionTime"]
 
           # prepare output row based on output_headers config
@@ -110,7 +110,7 @@ class GeocoderWorkerSkJob
             when "resultNumber"   then 1
             when "yourId"         then your_id
             when "location"       then location
-            when "faults"         then faults.present? ? "[#{faults}]" : ""
+            when "faults"         then faults
             when "executionTime"  then execution_time
             else
               props[header] || ""
@@ -281,5 +281,21 @@ class GeocoderWorkerSkJob
         row.header?(header) ? (row[header] || "") : ""
       end
     end
+  end
+
+  def format_faults(raw_faults)
+    formatted = Array(raw_faults).filter_map do |fault|
+      next if fault.blank?
+      element = fault["element"].to_s.presence
+      fault_name = fault["fault"].to_s.presence
+      penalty = fault["penalty"]
+      next if element.blank? || fault_name.blank? || penalty.nil?
+
+      "#{element}.#{fault_name}:#{penalty}"
+    rescue
+      nil
+    end
+
+    formatted.any? ? "[#{formatted.join(', ')}]" : ""
   end
 end

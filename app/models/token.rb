@@ -2,7 +2,7 @@ class Token < ApplicationRecord
   MAX_TOKENS_PER_USER = 10
 
   belongs_to :user
-  before_create :generate_token_value
+  before_validation :generate_token_value, on: :create
   validate :user_token_limit_not_exceeded, on: :create
 
   validates :value, presence: true, uniqueness: true

@@ -288,6 +288,31 @@ Queue config:
   - `default`
 - Worker concurrency is set in Sidekiq config (`:concurrency: 5`).
 
+### 2.4 Common Hosted Email Service (CHES)
+
+Results-ready email is sent through CHES API using:
+
+- `CHES_CLIENT_ID` (required)
+- `CHES_CLIENT_SECRET` (required)
+- `CHES_API_URL` (optional, default: `https://ches.api.gov.bc.ca/api/v1/email`)
+
+Sender is fixed to:
+
+- `example@gov.bc.ca`
+
+Method added:
+
+- `ApplicationMailer.send_results_ready_email!(destination_address:, body:)`
+
+Example (Rails console):
+
+```ruby
+ApplicationMailer.send_results_ready_email!(
+  destination_address: "client@example.com",
+  body: "Your LOC-CPF results are ready for download."
+)
+```
+
 ## 3) Work logic (master job -> worker jobs -> joined result)
 
 1. User submits `POST /api/jobs` with endpoint `Geocode` and input data.
@@ -469,3 +494,38 @@ The script will:
 2. Poll job status until completion.
 3. Download the result file and print average score.
 4. If errors occur, download and save the error file.
+
+
+### Initial deployment
+
+1. If needed, create MySQL credentials in a secret named `mysql-credentials`. Example:
+
+```yaml
+kind: Secret
+apiVersion: v1
+metadata:
+  name: mysql-credentials
+  namespace: NAMESPACE
+data:
+  mysql-password: BASE64_ENCODED_PASSWORD
+  mysql-root-password: ''
+type: Opaque
+```
+
+2. Open a MySQL terminal in OpenShift:
+
+```bash
+mysql -uroot
+```
+
+3. Create `cpf-user`, grant privileges, and create the database:
+
+```sql
+CREATE USER 'cpf-user'@'%' IDENTIFIED BY 'MgxYZq';
+GRANT ALL PRIVILEGES ON *.* TO 'cpf-user'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+CREATE DATABASE `cpf-database`;
+```
+
+4. Verify environment variables are correct.  
+   For example, ensure the MySQL service name matches the ArgoCD/Helm chart project name.

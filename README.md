@@ -484,7 +484,7 @@ Sidekiq will connect to `redis://localhost:6379/0` by default and process jobs f
 python3 sample_client_script.py \
   --env local \
   --api-token <your-api-token> \
-  --input-file example.csv \
+  --input-file example.tsv \
   --output-file results.csv \
   --max-wait 120
 ```

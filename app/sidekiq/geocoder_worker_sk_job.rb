@@ -7,6 +7,7 @@ class GeocoderWorkerSkJob
   include Sidekiq::Job
 
   ERROR_HEADERS = ["sequenceNumber", "yourId", "addressString", "errorMessage"].freeze
+  UNSET_MARKER_PARAMS = %w[streetDirection extrapolate].freeze
 
   sidekiq_options retry: false, queue: :geocoder_worker_sk_job, backtrace: false
 
@@ -255,6 +256,13 @@ class GeocoderWorkerSkJob
       params[key] = value unless value.blank?
     end
 
+    remove_unset_marker_params(params)
+  end
+
+  def remove_unset_marker_params(params)
+    UNSET_MARKER_PARAMS.each do |key|
+      params.delete(key) if params[key].to_s.strip == "--"
+    end
     params
   end
 

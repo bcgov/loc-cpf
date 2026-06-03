@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_22_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_02_104000) do
   create_table "active_storage_attachments", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -46,7 +46,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_22_120000) do
     t.datetime "started_at"
     t.datetime "completed_at"
     t.datetime "scheduled_at"
-    t.string "reschedued_jid"
     t.integer "attempt_count"
     t.integer "master_job_id"
     t.integer "user_id"
@@ -62,6 +61,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_22_120000) do
     t.datetime "result_created_at"
     t.integer "total_rows"
     t.string "error_message"
+    t.text "jid_history"
     t.index ["master_job_id"], name: "index_jobs_on_master_job_id"
   end
 

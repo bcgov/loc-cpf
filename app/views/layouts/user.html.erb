@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>LOC Concurrent Process Platform</title>
+    <title>Batch BC Geocoder</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="turbo-cache-control" content="no-preview">
     <%= csrf_meta_tags %>
@@ -29,6 +29,9 @@
   <body>
     <div class="content">
       <%= render partial: "layouts/main_navbar" %>
+      <% if ServerStatus.paused? %>
+        <p class="alert alert-primary">New submissions to the Batch Geocoder is currently paused.</p>
+      <% end %>
       <% if notice || alert %>
         <div class="container mt-3">
           <% if notice %>
@@ -39,6 +42,7 @@
           <% end %>
         </div>
       <% end %>
+      
       <div class="container mt-4">
         <%= yield %>
       </div>

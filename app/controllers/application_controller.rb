@@ -3,7 +3,7 @@ class ApplicationController < ActionController::Base
   include ActionController::MimeResponds
 
   # before_action :log_request_headers
-  before_action :authenticate_user!, except: [:status]
+  before_action :authenticate_user!, except: [:status, :sso]
 
   def authenticate_user!
     if Rails.env.development?
@@ -17,7 +17,11 @@ class ApplicationController < ActionController::Base
       return render_unauthorized unless user.present?
     end
     sign_in(user, store: false)
-  end 
+  end
+
+  def sso
+    redirect_to user_profile_path
+  end
 
   def status
     respond_to do |format|

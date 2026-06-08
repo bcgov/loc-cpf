@@ -13,7 +13,7 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   # Defines the root path route ("/")
-  root "application#status"
+  root "application#sso"
 
   get "profile" => "users#show", as: :user_profile
 
@@ -46,6 +46,9 @@ Rails.application.routes.draw do
         get "cancel"
       end
     end
+
+    get :settings, to: "settings#index"
+    get :toggle_server_status, to: "settings#toggle_server_status"
 
   end
 

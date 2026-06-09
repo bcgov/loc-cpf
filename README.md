@@ -531,3 +531,22 @@ CREATE DATABASE `cpf-database`;
 
 4. Verify environment variables are correct.  
    For example, ensure the MySQL service name matches the ArgoCD/Helm chart project name.
+
+### Failover Plan
+The system is not expected to be HA 24/7 service. We allow some interruption such as cluster failure to happen. However, after the interruption the service should be self healing: 
+
+1. All apps and components should self heal to the state before the failure automatically (system level)
+
+2. All submitted jobs should retry and completes (application/data level). 
+
+3. Partially submitted jobs will be ignored
+
+4. We only do short database backup (~15 min). So if a job is submitted within the database backup period, it may be lost if the database disk fails and not recoverable (unlikely to happen)
+
+5. A Reconciler CronJob runs periodically to scan MySQL for jobs in non-terminal states (for example: submitted, scheduled, in_progress, finalizing). It compares database state with Redis/Valkey queue state and detects interrupted or missing enqueued work.
+If a job is recoverable, the reconciler re-enqueues missing master/worker jobs. If a job exceeds timeout or retry limits, it is marked failed with a clear error_message.
+
+6. The reconciler also handles long-running stale jobs by stopping/re-enqueuing them when safe and idempotent.
+If required artifacts are missing (for example input/output files in SeaweedFS, or required job metadata in MySQL), the job is treated as non-recoverable and marked failed gracefully.
+
+7. New. Users should not submit any jobs to the Gold DR cluster. When the Gold DR is currently active, any request (API or web) will get a response saying the service is current down please come back later. (so we don’t need to sync the jobs)

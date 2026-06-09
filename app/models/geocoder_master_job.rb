@@ -30,6 +30,61 @@ class GeocoderMasterJob < MasterJob
     update_columns(jid: enqueued_jid, scheduled_at: run_at)
   end
 
+  def reenqueue_sidekiq_job
+    # this method reset sidekiq data for this job so it can be re-enqueued
+    # it also increase the attempt_count for retry limit tracking
+    # for a master job, we want to delete all associated worker jobs and recreate them 
+    # to ensure a clean retry with all new sidekiq jobs created for worker jobs;
+    Sidekiq::RetrySet.new.find_job(self.jid)&.delete
+    Sidekiq::ScheduledSet.new.find_job(self.jid)&.delete
+    Sidekiq::Queue.new("geocoder_master_sk_job").find_job(self.jid)&.delete
+
+    worker_jobs.each do |worker_job|
+      worker_job.delete_sidekiq_job
+      worker_job.destroy
+    end
+
+    self.jid = nil
+    self.started_at = nil
+    self.completed_at = nil
+    self.scheduled_at = nil
+    self.result_created_at = nil
+    self.total_rows = nil
+    self.success = nil
+    self.error_message = nil
+    self.output_file.purge if self.output_file.attached?
+    self.error_file.purge if self.error_file.attached?
+
+    # for master jobs only
+    self.total_jobs = nil
+    self.completed_jobs = nil
+
+    self.attempt_count = (self.attempt_count || 0) + 1
+    save!
+    self.enqueue_sidekiq_job
+  end
+
+  # method is used to check if all worker jobs are completed, and if so,
+  # generate the final output file for the master job; 
+  # this is called by the worker jobs after they are requeued or re-run because
+  # in that case we do not know if the worker job has increased completed_jobs count or not 
+  def check_worker_jobs_completion
+    return if self.success === false # if master job already marked as failed, skip result generation
+    return unless total_jobs.present? && total_jobs != 0
+
+    completed_count = worker_jobs.where.not(completed_at: nil).count
+    update_columns(completed_jobs: completed_count)
+
+    if completed_count == total_jobs
+      generate_result_file 
+    elsif completed_count < total_jobs && result_created_at.present? && output_file.attached?
+      # this means some worker jobs were requeued or re-run after the master job has generated the result file,
+      # we should remove the result file and reset the result_created_at timestamp to ensure data consistency; 
+      output_file.purge
+      update_columns(result_created_at: nil)
+    end
+  end
+
   # generate the final output file if all worker jobs are completed, and update the master job's output_file attachment and completed_at timestamp
   def generate_result_file
     return if self.success === false # if master job already marked as failed, skip result generation

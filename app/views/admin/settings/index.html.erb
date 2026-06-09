@@ -1,0 +1,11 @@
+<div class="admin-settings">
+  <h1 class="mb-4">Server Settings</h1>
+
+  <% current_status = (@server_status.presence || "running").to_s %>
+  <p class="lead">
+    Current server status:
+    <strong><%= current_status.capitalize %></strong>
+  </p>
+
+  <%= link_to "Toggle Server Status", admin_toggle_server_status_path, class: "btn btn-primary" %>
+</div>

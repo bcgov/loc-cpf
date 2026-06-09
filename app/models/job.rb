@@ -1,3 +1,5 @@
+require 'sidekiq/api'
+
 class Job < ApplicationRecord
   belongs_to :user
   has_one_attached :input_file, dependent: :destroy
@@ -9,14 +11,6 @@ class Job < ApplicationRecord
   MAX_ATTEMPTS = 10
 
   before_create :set_default_values
-
-  def get_resechueduled_job
-    if self.reschedued_jid.present?
-      Job.find_by(id: self.reschedued_jid)
-    else
-      nil
-    end
-  end
 
   def set_default_values
     self.attempt_count ||= 1
@@ -61,7 +55,82 @@ class Job < ApplicationRecord
     )
   end
 
+  # used for reconciler to determine if the job is eligible for retry or recovery
+  def is_terminal_status?
+     %w[completed failed canceled].include?(get_status)
+  end
+
+  def is_missing_required_artifacts?
+    if self.kind_of?(MasterJob)
+      return false unless self.master_job.present?
+    end
+    self.input_file.attached? && !self.input_file.blob.present?
+  end
+
+  # deprecated
+  def is_stale?
+    return false if is_terminal_status?
+    return false if started_at.blank?
+    return false if sidekiq_worker_info.present?
+    true
+  end
+
+  def sidekiq_worker_info
+    return nil if jid.blank?
+
+    Sidekiq::Workers.new.each do |process_id, thread_id, work|
+      payload = work["payload"] || {}
+      next unless payload["jid"] == jid
+
+      return {
+        process_id: process_id,
+        thread_id: thread_id,
+        run_at: (Time.at(work["run_at"]) if work["run_at"])
+      }
+    end
+
+    nil
+  rescue => e
+    Rails.logger.warn("sidekiq worker lookup failed for job=#{id}, jid=#{jid}: #{e.message}")
+    nil
+  end
+
+  def get_queue_name
+    return nil if jid.blank?
+
+    return "Running" if sidekiq_worker_info.present?
+    return "ScheduledSet" if Sidekiq::ScheduledSet.new.find_job(jid).present?
+    return "RetrySet" if Sidekiq::RetrySet.new.find_job(jid).present?
+    return "DeadSet" if Sidekiq::DeadSet.new.find_job(jid).present?
+
+    queue = Sidekiq::Queue.all.find { |q| q.find_job(jid).present? }
+    queue&.name
+  rescue => e
+    Rails.logger.warn("sidekiq queue lookup failed for job=#{id}, jid=#{jid}: #{e.message}")
+    nil
+  end
+
+  def missing_from_all_sidekiq_states?
+    return true if jid.blank?
+    return false if sidekiq_worker_info.present?
+    return false if sidekiq_job_exists?(jid)
+
+    true
+  end
+
   private
+
+  def sidekiq_job_exists?(jid)
+    return true if Sidekiq::ScheduledSet.new.find_job(jid).present?
+    return true if Sidekiq::RetrySet.new.find_job(jid).present?
+    return true if Sidekiq::DeadSet.new.find_job(jid).present?
+    return true if Sidekiq::Queue.all.any? { |q| q.find_job(jid).present? }
+
+    false
+  rescue => e
+    Rails.logger.warn("sidekiq lookup failed for job=#{id}, jid=#{jid}: #{e.message}")
+    false
+  end
 
   def purge_attachments
     input_file.purge if input_file.attached?

@@ -7,7 +7,6 @@ one:
   started_at: 2026-03-31 15:43:59
   completed_at: 2026-03-31 15:43:59
   scheduled_at: 2026-03-31 15:43:59
-  reschedued_jid: MyString
   attempt_count: 1
   master_job_id: 1
   input_file_path: MyString
@@ -22,7 +21,6 @@ two:
   started_at: 2026-03-31 15:43:59
   completed_at: 2026-03-31 15:43:59
   scheduled_at: 2026-03-31 15:43:59
-  reschedued_jid: MyString
   attempt_count: 1
   master_job_id: 1
   input_file_path: MyString

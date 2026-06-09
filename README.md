@@ -452,6 +452,8 @@ See `api_params.yaml` for full parameter and schema definitions.
 export AWS_ACCESS_KEY_ID=local_test_key_id
 export AWS_SECRET_ACCESS_KEY=local_test_secret
 export AWS_S3_BUCKET=cpf
+export CHES_CLIENT_ID=client_id
+export CHES_CLIENT_SECRET=client_secret
 
 ./seaweedfs/weed mini -dir=./seaweedfs/data
 # S3 Endpoint: http://localhost:8333
@@ -521,7 +523,7 @@ mysql -uroot
 3. Create `cpf-user`, grant privileges, and create the database:
 
 ```sql
-CREATE USER 'cpf-user'@'%' IDENTIFIED BY 'MgxYZq';
+CREATE USER 'cpf-user'@'%' IDENTIFIED BY 'THE PASSWORD';
 GRANT ALL PRIVILEGES ON *.* TO 'cpf-user'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 CREATE DATABASE `cpf-database`;

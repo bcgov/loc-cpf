@@ -6,21 +6,7 @@ class ApplicationController < ActionController::Base
   before_action :authenticate_user!, except: [:status]
 
   def authenticate_user!
-    $stdout.puts("Headers")
-    headers = request.headers.to_h.each_with_object({}) do |(key, value), out|
-      # next unless key.start_with?("HTTP_") || %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
-
-      out[key] =
-        if key.match?(/HTTP_AUTHORIZATION|HTTP_COOKIE|HTTP_X_CSRF_TOKEN/)
-          "[FILTERED]"
-        else
-          value
-        end
-    end
-
-    msg = "[RequestHeaders] #{request.request_method} #{request.fullpath} #{headers}"
-    Rails.logger.info(msg)
-    $stdout.puts(msg)
+    Rails.logger.info request.headers.to_h.inspect
 
     
     if Rails.env.development?

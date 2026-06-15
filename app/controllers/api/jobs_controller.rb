@@ -45,6 +45,10 @@ class Api::JobsController < Api::ApplicationController
 
   # create a new master job
   def create
+    if ServerStatus.paused?
+      return render json: { error: Admin::SettingsController::PAUSED_JOB_SUBMISSION_MESSAGE }, status: :service_unavailable
+    end
+
     begin
       endpoint_name = params[:endpoint_name].presence
       raise Exception, "endpoint_name is required" unless endpoint_name

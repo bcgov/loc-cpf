@@ -17,7 +17,11 @@ class ApplicationController < ActionController::Base
       return render_unauthorized unless user.present?
     end
     sign_in(user, store: false)
-  end 
+  end
+
+  def sso
+    redirect_to user_profile_path
+  end
 
   def status
     respond_to do |format|

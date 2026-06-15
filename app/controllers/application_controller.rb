@@ -2,10 +2,11 @@ class ApplicationController < ActionController::Base
   protect_from_forgery prepend: true
   include ActionController::MimeResponds
 
-  before_action :log_request_headers
+  # before_action :log_request_headers
   before_action :authenticate_user!, except: [:status]
 
   def authenticate_user!
+    log_request_headers
     if Rails.env.development?
       # use a dummy user for development
       user = User.find_or_create_the_dummy_user

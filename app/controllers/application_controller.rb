@@ -8,7 +8,7 @@ class ApplicationController < ActionController::Base
   def authenticate_user!
     $stdout.puts("Headers")
     headers = request.headers.to_h.each_with_object({}) do |(key, value), out|
-      next unless key.start_with?("HTTP_") || %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
+      # next unless key.start_with?("HTTP_") || %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
 
       out[key] =
         if key.match?(/HTTP_AUTHORIZATION|HTTP_COOKIE|HTTP_X_CSRF_TOKEN/)

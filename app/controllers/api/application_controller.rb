@@ -4,6 +4,7 @@ class Api::ApplicationController < ActionController::API
   before_action :authenticate_user!
 
   def authenticate_user!
+    Rails.logger.info request.headers.to_h.inspect
     if !request.headers["HTTP_X_USERINFO"].blank?
       token = request.headers["HTTP_X_USERINFO"]
       return render_unauthorized unless token.present?

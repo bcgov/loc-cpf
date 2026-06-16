@@ -6,9 +6,6 @@ class ApplicationController < ActionController::Base
   before_action :authenticate_user!, except: [:status]
 
   def authenticate_user!
-    Rails.logger.info request.headers.to_h.inspect
-
-    
     if Rails.env.development?
       # use a dummy user for development
       user = User.find_or_create_the_dummy_user

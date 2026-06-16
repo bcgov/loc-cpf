@@ -63,6 +63,7 @@ else:
 
 print("Submit Status Code:", submit_resp.status_code)
 print("Submit Response Body:", submit_resp.text)
+print("headers:", headers)
 submit_resp.raise_for_status()
 
 job_id = str(submit_resp.json()["id"])

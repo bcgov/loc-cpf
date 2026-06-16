@@ -4,7 +4,21 @@ class Api::ApplicationController < ActionController::API
   before_action :authenticate_user!
 
   def authenticate_user!
-    Rails.logger.info request.headers.to_h.inspect
+    headers = request.headers.to_h.each_with_object({}) do |(key, value), out|
+      next unless key.start_with?("HTTP_") || %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
+
+      out[key] =
+        if key.match?(/HTTP_AUTHORIZATION|HTTP_COOKIE|HTTP_X_CSRF_TOKEN/)
+          "[FILTERED]"
+        else
+          value
+        end
+    end
+
+    msg = "[RequestHeaders] #{request.request_method} #{request.fullpath} #{headers}"
+    Rails.logger.info(msg)
+    $stdout.puts(msg)
+    
     if !request.headers["HTTP_X_USERINFO"].blank?
       token = request.headers["HTTP_X_USERINFO"]
       return render_unauthorized unless token.present?

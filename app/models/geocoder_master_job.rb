@@ -1,5 +1,6 @@
 require "csv"
 require "stringio"
+require "sidekiq/api"
 
 class GeocoderMasterJob < MasterJob
   # after_commit :enqueue_sidekiq_job, on: :create
@@ -150,8 +151,6 @@ class GeocoderMasterJob < MasterJob
   def sidekiq_status
     return "completed" if completed_at.present?
     return "not_enqueued" if jid.blank?
-
-    require "sidekiq/api"
 
     return "running" if Sidekiq::Workers.new.any? { |_p, _t, w| w.dig("payload", "jid") == jid }
     return "queued" if Sidekiq::Queue.new("geocoder_master_sk_job").find_job(jid)

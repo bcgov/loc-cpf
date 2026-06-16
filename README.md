@@ -4,35 +4,48 @@ This document explains user flow, app configuration, work processing logic, and 
 
 ## 1) User logic (SSO, token, API usage)
 
-### 1.1 Login with SSO
-1. Open the app in your browser:
-   - `https://cpf-dev.apps.gov.bc.ca` (dev)
-2. Complete SSO login.
-3. After login, your user session is active.
+Authentication for jobs endpoints:
+- Dev/test/prod: provide Kong consumer API key as `apikey` in the request header or query parameter.
+  - The app assumes Kong has already authenticated and authorized the request before it reaches the app.
+- Local: provide `api_token` as a request parameter, or provide `HTTP_X_USERINFO` header for internal auth flow.
 
-### 1.2 Create API token (browser only)
-Token creation requires an authenticated SSO session and must be done in the browser.
-**API creation of tokens is not supported.**
+### 1.1 Browser access for the app
+- Dev/test/prod: browser access is protected by Kong + Keycloak SSO, and the app receives user info from Kong.
+- Local: browser access uses a dummy admin user.
 
-1. After SSO login, visit: `https://cpf-dev.apps.gov.bc.ca/users/tokens`
-2. Click **Create token** and copy the generated token value.
-3. Optionally set an expiry date.
+### 1.2 Create API token (local only)
+Token creation is only for local testing and is done in the browser.
 
-> Token management (viewing and revoking existing tokens) is also available at the same URL.
+1. Open the local app:
+   - `http://0.0.0.0:3000`
+2. Visit: `http://0.0.0.0:3000/users/tokens`
+3. Click **Create token** and copy the generated token value.
+4. Optionally set an expiry date.
+
+> Token management (viewing and revoking existing tokens) is available only in local development.
 
 ### 1.3 Submit jobs and fetch results using API token
-Jobs API base path:
-- `/api/jobs`
+Jobs API base paths:
+- `http://0.0.0.0:3000/api/` (local)
 
-Authentication for jobs endpoints:
-- Provide `api_token` as a request parameter, or
-- provide `HTTP_X_USERINFO` header (Kong user info) for internal auth flow.
+### 1.4 Access through API Gateway (Kong consumer apikey)
+On Dev, Test and Prod, users can access the Batch Geocoder using the consumer apikey for Geocoder.
+You can either use an existing Geocoder apikey or get a new one by:
+
+1. Apply Geocoder access in the API Gateway
+2. Create a new apikey
+
+Job API base paths:
+- `https://geocoderdlv.api.gov.bc.ca/batch/` (dev)
+- `https://geocodertst.api.gov.bc.ca/batch/` (test)
+- `https://geocoder.api.gov.bc.ca/batch/` (prod)
 
 #### Create a job
-`POST /api/jobs`
+`POST /batch/jobs` on dev/test/prod, or `POST /api/jobs` locally
 
 Required fields:
-- `api_token`
+- `apikey` for dev/test/prod
+- `api_token` for local
 - `endpoint_name` (currently `Geocode`)
 - One input source:
   - `input_data_file` (file upload), or
@@ -41,10 +54,10 @@ Required fields:
 
 Example:
 ```bash
-curl -X POST "https://cpf-dev.apps.gov.bc.ca/api/jobs" \
-  -F "api_token=<api_token>" \
+curl -X POST "0.0.0.0:3000/api/jobs" \
+  -H "apikey: <apikey>" \
   -F "endpoint_name=Geocode" \
-  -F "input_data_content_type=text/csv" \
+  -F "input_data_content_type=text/tsv" \
   -F "output_data_content_type=text/csv" \
   -F "input_data_file=@/path/to/input.csv"
 ```
@@ -55,11 +68,11 @@ Create response:
 ```
 
 #### Check job status
-`GET /api/jobs/:id?api_token=<api_token>`
+`GET /batch/jobs/:id?apikey=<apikey>` on dev/test/prod, or `GET /api/jobs/:id?api_token=<api_token>` locally
 
 Example:
 ```bash
-curl "https://cpf-dev.apps.gov.bc.ca/api/jobs/123?api_token=<api_token>"
+curl "https://geocoderdlv.api.gov.bc.ca/batch/jobs/18?apikey=<apikey>"
 ```
 
 Response contains status and output URL when ready:
@@ -80,11 +93,11 @@ Response contains status and output URL when ready:
 ```
 
 #### List jobs
-`GET /api/jobs?api_token=<api_token>&page=1&page_size=25`
+`GET /batch/jobs?apikey=<apikey>&page=1&page_size=25` on dev/test/prod, or `GET /api/jobs?api_token=<api_token>&page=1&page_size=25` locally
 
 #### Download output file
 Use `output_file_url` from the job payload.
-If the URL is relative, prepend app host and include `api_token` when requesting.
+If the URL is relative, prepend the correct host and include `apikey` or `api_token` when requesting.
 
 ## Final I/O Format
 
@@ -485,7 +498,7 @@ Sidekiq will connect to `redis://localhost:6379/0` by default and process jobs f
 ```bash
 python3 sample_client_script.py \
   --env local \
-  --api-token <your-api-token> \
+  --apikey <your-api-key> \
   --input-file example.tsv \
   --output-file results.csv \
   --max-wait 120

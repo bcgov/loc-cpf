@@ -35,7 +35,7 @@ class User < ApplicationRecord
     user
   end
 
-   # this method should be called before any action. Kong will attach a header HTTP_X_USER_INFO
+  # this method should be called before any action. Kong will attach a header HTTP_X_USER_INFO
   # with a base64 encoded token, which contains user information. We will create the user in db if not exist, 
   # and use the user for authentication and authorization in the app.
   # example parsed token: {
@@ -65,6 +65,22 @@ class User < ApplicationRecord
       user
     rescue => e
       Rails.logger.error("Failed to find or create user from Kong token: #{e.message}")
+      nil
+    end
+  end
+
+  # this method creates or finds a user based on the Kong consumer ID, which is used for Kong-authenticated requests without SSO token.
+  def self.find_or_create_from_consumer(consumer_id, consumer_username)
+    begin
+      user = User.find_or_initialize_by(client_id: consumer_id)
+      if user.new_record?
+        user.display_name = consumer_username
+        user.password = Devise.friendly_token[0, 20]
+        user.save!
+      end
+      user
+    rescue => e
+      Rails.logger.error("Failed to find or create user from Kong consumer ID: #{e.message}")
       nil
     end
   end

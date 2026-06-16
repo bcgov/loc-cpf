@@ -9,9 +9,9 @@ import requests
 
 ENV_URLS = {
     "local": "http://0.0.0.0:3000/api/jobs",
-    "dev": "https://cpf-dev.apps.gov.bc.ca/api/jobs",
-    "test": "https://cpf-test.apps.gov.bc.ca/api/jobs",
-    "prod": "https://cpf.apps.gov.bc.ca/api/jobs",
+    "dev": "https://geocoderdlv.api.gov.bc.ca/batch/jobs",
+    "test": "https://geocodertst.api.gov.bc.ca/batch/jobs",
+    "prod": "https://geocoder.api.gov.bc.ca/batch/jobs",
 }
 
 
@@ -29,7 +29,7 @@ def detect_delimiter(path):
 
 parser = argparse.ArgumentParser(description="Submit and poll geocoder job.")
 parser.add_argument("--env", choices=["local", "dev", "test", "prod"], default="dev", required=True, help="Target environment")
-parser.add_argument("--api-token", required=True, help="API token")
+parser.add_argument("--apikey", required=True, help="Kong consumer apikey or local API token")
 parser.add_argument("--input-file", required=True, help="Local input file path OR input URL")
 parser.add_argument("--output-file", default="geocoder_results.csv", help="Local output file path")
 parser.add_argument("--error-file", default=None, help="Optional local error file path (defaults to <output-file>.errors.csv)")
@@ -39,25 +39,27 @@ args = parser.parse_args()
 
 jobs_url = ENV_URLS[args.env]
 origin = f"{urlparse(jobs_url).scheme}://{urlparse(jobs_url).netloc}"
+headers = {"apikey": args.apikey} if args.env != "local" else {}
+auth_params = {"api_token": args.apikey} if args.env == "local" else {}
 
 data = {
-    "api_token": args.api_token,
     "endpoint_name": "Geocode",
-    "options[name1]": "value1", # please update with your actual option names and values as needed
+    "options[name1]": "value1",  # please update with your actual option names and values as needed
     "options[name2]": "value2",
     "options[name3]": "value3",
     "input_data_content_type": "text/tsv" if args.input_file.lower().endswith(".tsv") else "text/csv",
     "output_data_content_type": "text/tsv" if args.output_file.lower().endswith(".tsv") else "text/csv",
 }
+data.update(auth_params)
 
 log(f"Submitting job to: {jobs_url}")
 
 if is_url(args.input_file):
     data["input_data_url"] = args.input_file
-    submit_resp = requests.post(jobs_url, data=data, timeout=60)
+    submit_resp = requests.post(jobs_url, data=data, headers=headers, timeout=60)
 else:
     with open(args.input_file, "rb") as f:
-        submit_resp = requests.post(jobs_url, data=data, files={"input_data_file": f}, timeout=60)
+        submit_resp = requests.post(jobs_url, data=data, files={"input_data_file": f}, headers=headers, timeout=60)
 
 print("Submit Status Code:", submit_resp.status_code)
 print("Submit Response Body:", submit_resp.text)
@@ -72,7 +74,7 @@ job_payload = None
 
 while True:
     log(f"Checking status of job {job_id} at: {job_url}")
-    r = requests.get(job_url, params={"api_token": args.api_token}, timeout=30)
+    r = requests.get(job_url, params=auth_params, headers=headers, timeout=30)
     r.raise_for_status()
     job_payload = r.json()
     job_status = (job_payload.get("status") or "").lower()
@@ -101,7 +103,7 @@ if error_url:
     error_file_path = args.error_file or f"{args.output_file}.errors.csv"
     log(f"Error file found. Downloading from: {error_url}")
 
-    err_resp = requests.get(error_url, params={"api_token": args.api_token}, stream=True, timeout=120)
+    err_resp = requests.get(error_url, params=auth_params, headers=headers, stream=True, timeout=120)
     err_resp.raise_for_status()
 
     with open(error_file_path, "wb") as ef:
@@ -119,7 +121,7 @@ if result_url.startswith("/"):
     result_url = urljoin(origin, result_url)
 
 log(f"Downloading results from: {result_url}")
-download_resp = requests.get(result_url, params={"api_token": args.api_token}, stream=True, timeout=120)
+download_resp = requests.get(result_url, params=auth_params, headers=headers, stream=True, timeout=120)
 download_resp.raise_for_status()
 
 with open(args.output_file, "wb") as f:

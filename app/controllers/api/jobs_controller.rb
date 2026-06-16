@@ -1,3 +1,5 @@
+require "sidekiq/api"
+
 class Api::JobsController < Api::ApplicationController
   DEFAULT_PAGE_SIZE = 25
 
@@ -62,6 +64,12 @@ class Api::JobsController < Api::ApplicationController
       job_class = job_class_name.safe_constantize
       raise Exception, "Invalid job class: #{job_class_name}" unless job_class
 
+      queued_jobs_count = queued_jobs_in_sidekiq(endpoint_name)
+
+      if queued_jobs_count >= 20
+        raise Exception, "You have reached the limit of 20 jobs in the queue. Please wait and try again later."
+      end
+
       @geocoder_master_job = job_class.new(user: @user, endpoint_name: endpoint_name)
 
       options = endpoint["default_params"].dup
@@ -119,6 +127,25 @@ class Api::JobsController < Api::ApplicationController
       render json: { id: @geocoder_master_job.id }, status: :created
     rescue Exception => e
       render json: { error: "Failed to create job: #{e.message}" }, status: :unprocessable_entity
+    end
+  end
+
+  private
+
+  def queued_jobs_in_sidekiq(endpoint_name)
+    user_job_ids = @user.master_jobs.where(endpoint_name: endpoint_name).pluck(:id).map(&:to_s)
+    return 0 if user_job_ids.empty?
+
+    Sidekiq::Queue.all.sum do |queue|
+      queue.count { |job| sidekiq_job_matches_master_job_ids?(job, user_job_ids) }
+    end
+  end
+
+  def sidekiq_job_matches_master_job_ids?(job, user_job_ids)
+    payload = job.item.to_json
+    user_job_ids.any? do |id|
+      payload.include?("/GeocoderMasterJob/#{id}") ||
+        payload.match?(/"(master_job_id|geocoder_master_job_id|job_id|id)"\s*:\s*"#{Regexp.escape(id)}"/)
     end
   end
 end

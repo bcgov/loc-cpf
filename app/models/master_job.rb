@@ -6,6 +6,8 @@ class MasterJob < Job
       if worker_jobs.any? { |job| job.get_status == "failed" }
         update_column(:success, false) if success.nil?
         "failed"
+      elsif success === false
+        "failed"
       elsif result_created_at.present?
         "completed"
       elsif total_jobs.present? && completed_jobs.present? && completed_jobs < total_jobs

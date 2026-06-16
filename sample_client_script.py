@@ -39,8 +39,13 @@ args = parser.parse_args()
 
 jobs_url = ENV_URLS[args.env]
 origin = f"{urlparse(jobs_url).scheme}://{urlparse(jobs_url).netloc}"
-headers = {"apikey": args.apikey} if args.env != "local" else {}
-auth_params = {"api_token": args.apikey} if args.env == "local" else {}
+headers = {}
+auth_params = {}
+
+if args.env == "local":
+    auth_params = {"api_token": args.apikey}
+else:
+    headers = {"apikey": args.apikey}
 
 data = {
     "endpoint_name": "Geocode",
@@ -63,7 +68,6 @@ else:
 
 print("Submit Status Code:", submit_resp.status_code)
 print("Submit Response Body:", submit_resp.text)
-print("headers:", headers)
 submit_resp.raise_for_status()
 
 job_id = str(submit_resp.json()["id"])

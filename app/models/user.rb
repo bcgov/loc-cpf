@@ -17,7 +17,14 @@ class User < ApplicationRecord
   validates :email, allow_blank: true, uniqueness: false
   validates :client_id, allow_blank: true, uniqueness: true
 
+  # Devise :validatable requires email by default; override since we auth via client_id
+  def email_required?
+    false
+  end
 
+  def password_required?
+    new_record?
+  end
 
   def ifAdmin?
     self.admin.present? && self.admin

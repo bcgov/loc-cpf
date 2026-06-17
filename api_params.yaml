@@ -20,8 +20,7 @@ paths:
       summary: List geocoding jobs
       description: Retrieve a list of geocoding jobs.
       security:
-        - ApiTokenQuery: []
-        - KongUserInfo: []
+        - ApiKey: []
       parameters:
         - name: page
           in: query
@@ -59,8 +58,7 @@ paths:
       summary: Create a geocoding job
       description: Create a new geocoding job. Supports both JSON and multipart/form-data requests.
       security:
-        - ApiTokenQuery: []
-        - KongUserInfo: []
+        - ApiKey: []
       requestBody:
         required: true
         content:
@@ -208,8 +206,7 @@ paths:
       summary: Get job status and details
       description: Retrieve the status and details of a geocoding job by ID.
       security:
-        - ApiTokenQuery: []
-        - KongUserInfo: []
+        - ApiKey: []
       parameters:
         - name: id
           in: path
@@ -248,8 +245,7 @@ paths:
       summary: Delete a geocoding job
       description: Delete a geocoding job by its ID.
       security:
-        - ApiTokenQuery: []
-        - KongUserInfo: []
+        - ApiKey: []
       parameters:
         - name: id
           in: path
@@ -288,14 +284,10 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
-    ApiTokenQuery:
-      type: apiKey
-      in: query
-      name: api_token
-    KongUserInfo:
+    ApiKey:
       type: apiKey
       in: header
-      name: HTTP_X_USERINFO
+      name: apikey
   schemas:
     Pagination:
       type: object

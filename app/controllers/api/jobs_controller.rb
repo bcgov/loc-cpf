@@ -2,6 +2,7 @@ require "sidekiq/api"
 
 class Api::JobsController < Api::ApplicationController
   DEFAULT_PAGE_SIZE = 25
+  MAX)_PAGE_SIZE = 100
 
   # list all master jobs for the user
   def index
@@ -10,6 +11,7 @@ class Api::JobsController < Api::ApplicationController
 
     page_size = params[:page_size].to_i
     page_size = DEFAULT_PAGE_SIZE if page_size < 1
+    page_size = MAX_PAGE_SIZE if page_size > MAX_PAGE_SIZE
 
     @master_jobs = @user.master_jobs.order(created_at: :asc).page(page).per(page_size)
 
@@ -124,7 +126,7 @@ class Api::JobsController < Api::ApplicationController
 
       @geocoder_master_job.save!
       @geocoder_master_job.enqueue_sidekiq_job
-      render json: { id: @geocoder_master_job.id }, status: :created
+      render json: @geocoder_master_job.to_user_json, status: :created
     rescue Exception => e
       render json: { error: "Failed to create job: #{e.message}" }, status: :unprocessable_entity
     end

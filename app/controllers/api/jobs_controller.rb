@@ -2,7 +2,7 @@ require "sidekiq/api"
 
 class Api::JobsController < Api::ApplicationController
   DEFAULT_PAGE_SIZE = 25
-  MAX)_PAGE_SIZE = 100
+  MAX_PAGE_SIZE = 100
 
   # list all master jobs for the user
   def index

@@ -1,7 +1,7 @@
 class Api::ApplicationController < ActionController::API
   include ActionController::MimeResponds
 
-  before_action :authenticate_user!
+  before_action :authenticate_user!, except: [:status]
 
   # Note: now we have two types of authentication. One from the Kong token in the header, 
   # and another from api_token param for users to authenticate directly with an API token. 
@@ -28,6 +28,16 @@ class Api::ApplicationController < ActionController::API
         return render_unauthorized
     end
 
+  end
+
+  # GET /api/status
+  # This endpoint is used to check the status of the API server. It returns a JSON including queue size
+  def status
+    render json: { 
+      status: "ok",
+      queue_size: Sidekiq::Queue.new.size,
+      timestamp: Time.current.utc.iso8601
+    }
   end
 
   private

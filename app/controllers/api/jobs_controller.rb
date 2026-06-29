@@ -1,4 +1,5 @@
 require "sidekiq/api"
+require "csv"
 
 class Api::JobsController < Api::ApplicationController
   DEFAULT_PAGE_SIZE = 25
@@ -109,12 +110,27 @@ class Api::JobsController < Api::ApplicationController
       @geocoder_master_job.output_data_content_type = params[:output_data_content_type].presence || "text/csv"
 
       if params[:input_data].present?
-        csv_content = params[:input_data].to_s
-        @geocoder_master_job.input_file.attach(
-          io: StringIO.new(csv_content),
-          filename: "input_#{Time.current.to_i}.csv",
-          content_type: @geocoder_master_job.input_data_content_type || "text/csv"
-        )
+        if params[:input_data_content_type].present? && params[:input_data_content_type] == "application/json"
+          csv_content = convert_json_input_to_csv(params[:input_data])
+          @geocoder_master_job.input_data_content_type = "text/csv"
+          @geocoder_master_job.input_file.attach(
+            io: StringIO.new(csv_content),
+            filename: "input_#{Time.current.to_i}.csv",
+            content_type: "text/csv"
+          )
+        elsif params[:input_data_content_type].present? && (params[:input_data_content_type] == "text/csv" || params[:input_data_content_type] == "text/tsv")
+          csv_content = params[:input_data].to_s
+          @geocoder_master_job.input_file.attach(
+            io: StringIO.new(csv_content),
+            filename: "input_#{Time.current.to_i}.csv",
+            content_type: @geocoder_master_job.input_data_content_type || "text/csv"
+          )
+        elsif params[:input_data_content_type].blank?
+          raise Exception, "input_data_content_type is required when input_data is provided"
+        else
+          raise Exception, "Unsupported input_data_content_type: #{@geocoder_master_job.input_data_content_type}. The supported content types are: text/csv, text/tsv, application/json"
+        end
+        
       elsif params[:input_data_url].present?
         url = params[:input_data_url]
         @geocoder_master_job.input_file.attach(io: URI.open(url), filename: File.basename(URI.parse(url).path))
@@ -133,6 +149,27 @@ class Api::JobsController < Api::ApplicationController
   end
 
   private
+
+  def convert_json_input_to_csv(input_data)
+    parsed_json = JSON.parse(input_data.to_s)
+    rows = parsed_json.is_a?(Array) ? parsed_json : [parsed_json]
+
+    raise Exception, "JSON input must contain at least one object" if rows.blank?
+    raise Exception, "JSON input must be an object or an array of objects" unless rows.all? { |row| row.is_a?(Hash) }
+
+    headers = rows.each_with_object([]) do |row, keys|
+      row.keys.each { |key| keys << key unless keys.include?(key) }
+    end
+
+    CSV.generate do |csv|
+      csv << headers
+      rows.each do |row|
+        csv << headers.map { |header| row[header] }
+      end
+    end
+  rescue JSON::ParserError => e
+    raise Exception, "Invalid JSON input: #{e.message}"
+  end
 
   def queued_jobs_in_sidekiq(endpoint_name)
     user_job_ids = @user.master_jobs.where(endpoint_name: endpoint_name).pluck(:id).map(&:to_s)

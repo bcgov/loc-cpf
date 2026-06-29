@@ -1,0 +1,551 @@
+openapi: 3.0.3
+info:
+  title: LOC-CPF Batch Geocoder API
+  version: 1.0.0
+servers:
+  - url: https://cpf-dev.apps.gov.bc.ca
+    description: Development
+  - url: https://cpf-test.apps.gov.bc.ca
+    description: Test
+  - url: https://cpf.apps.gov.bc.ca
+    description: Production
+  - url: http://0.0.0.0:3000
+    description: Local
+tags:
+  - name: Tokens
+    description: Operations related to user tokens
+  - name: Jobs
+    description: Operations related to geocoding jobs
+paths:
+  /users/tokens:
+    get:
+      tags:
+        - Tokens
+      summary: List current user tokens
+      description: Retrieve a list of tokens associated with the current user.
+      security:
+        - KongUserInfo: []
+      responses:
+        '200':
+          description: A list of user tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Tokens
+      summary: Create a new token
+      description: Create a new token for the current user. Optionally specify an expiration date.
+      security:
+        - KongUserInfo: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expired_at:
+                  type: string
+                  format: date-time
+                  description: Optional expiration date of the token
+              additionalProperties: false
+      responses:
+        '201':
+          description: Token created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Entity - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /users/tokens/{id}:
+    delete:
+      tags:
+        - Tokens
+      summary: Revoke a token
+      description: Revoke a token by its ID.
+      security:
+        - KongUserInfo: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Token identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Token revoked successfully
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/jobs:
+    get:
+      tags:
+        - Jobs
+      summary: List geocoding jobs
+      description: Retrieve a list of geocoding jobs.
+      security:
+        - ApiTokenQuery: []
+        - KongUserInfo: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: A paginated list of geocoding jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobListResponse'
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Jobs
+      summary: Create a geocoding job
+      description: Create a new geocoding job. Supports both JSON and multipart/form-data requests.
+      security:
+        - ApiTokenQuery: []
+        - KongUserInfo: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - endpoint_name
+              properties:
+                api_token:
+                  type: string
+                  description: API token, optional if header auth is used
+                endpoint_name:
+                  type: string
+                  enum:
+                    - Geocode
+                options:
+                  oneOf:
+                    - type: object
+                      additionalProperties:
+                        type: string
+                    - type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - value
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+                input_data_content_type:
+                  type: string
+                  enum:
+                    - text/csv
+                    - text/tsv
+                    - application/json
+                  default: text/csv
+                output_data_content_type:
+                  type: string
+                  enum:
+                    - text/csv
+                    - text/tsv
+                  default: text/csv
+                input_data:
+                  type: string
+                  description: Input data as raw CSV, TSV, or JSON string. JSON input is converted to CSV server-side.
+                input_data_url:
+                  type: string
+                  format: uri
+                  description: URL to input data
+                input_data_file:
+                  type: string
+                  format: binary
+                  description: Input data file (multipart only)
+              oneOf:
+                - required:
+                    - input_data
+                - required:
+                    - input_data_url
+                - required:
+                    - input_data_file
+          application/json:
+            schema:
+              type: object
+              required:
+                - endpoint_name
+              properties:
+                api_token:
+                  type: string
+                  description: API token, optional if header auth is used
+                endpoint_name:
+                  type: string
+                  enum:
+                    - Geocode
+                options:
+                  oneOf:
+                    - type: object
+                      additionalProperties:
+                        type: string
+                    - type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - value
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+                input_data_content_type:
+                  type: string
+                  enum:
+                    - text/csv
+                    - text/tsv
+                    - application/json
+                  default: text/csv
+                output_data_content_type:
+                  type: string
+                  enum:
+                    - text/csv
+                    - text/tsv
+                  default: text/csv
+                input_data:
+                  type: string
+                  description: Input data as raw CSV, TSV, or JSON string. JSON input is converted to CSV server-side.
+                input_data_url:
+                  type: string
+                  format: uri
+                  description: URL to input data
+              oneOf:
+                - required:
+                    - input_data
+                - required:
+                    - input_data_url
+      responses:
+        '201':
+          description: Job created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Entity - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/jobs/{id}:
+    get:
+      tags:
+        - Jobs
+      summary: Get job status and details
+      description: Retrieve the status and details of a geocoding job by ID.
+      security:
+        - ApiTokenQuery: []
+        - KongUserInfo: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Entity - invalid job ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Jobs
+      summary: Delete a geocoding job
+      description: Delete a geocoding job by its ID.
+      security:
+        - ApiTokenQuery: []
+        - KongUserInfo: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Job deleted successfully
+        '401':
+          description: Unauthorized - authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Entity - invalid job ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    ApiTokenQuery:
+      type: apiKey
+      in: query
+      name: api_token
+    KongUserInfo:
+      type: apiKey
+      in: header
+      name: HTTP_X_USERINFO
+  schemas:
+    Pagination:
+      type: object
+      required:
+        - page
+        - page_size
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          nullable: true
+          example: 245
+        total_pages:
+          type: integer
+          minimum: 0
+          nullable: true
+          example: 13
+    JobListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    Token:
+      type: object
+      required:
+        - id
+        - value
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique token identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        value:
+          type: string
+          description: Token value
+          example: "abcdef1234567890"
+        expired_at:
+          type: string
+          format: date-time
+          description: Expiration date of the token
+          nullable: true
+          example: "2024-12-31T23:59:59Z"
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp of the token
+          example: "2023-01-01T12:00:00Z"
+    Job:
+      type: object
+      required:
+        - id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique job identifier
+          example: "job-123e4567-e89b-12d3-a456-426614174000"
+        status:
+          type: string
+          description: Current status of the job
+          example: "pending"
+        created_at:
+          type: string
+          format: date-time
+          description: Job creation timestamp
+          example: "2023-01-01T12:00:00Z"
+        total_records:
+          type: integer
+          description: Total number of records processed
+          nullable: true
+          example: 1000
+        processed_records:
+          type: integer
+          description: Number of records processed so far
+          nullable: true
+          example: 500
+        successful_records:
+          type: integer
+          description: Number of successfully processed records
+          nullable: true
+          example: 480
+        failed_records:
+          type: integer
+          description: Number of records that failed processing
+          nullable: true
+          example: 20
+        input_file_url:
+          type: string
+          format: uri
+          description: URL to the input data file
+          nullable: true
+          example: "https://example.com/input.csv"
+        output_file_url:
+          type: string
+          format: uri
+          description: URL to the output data file
+          nullable: true
+          example: "https://example.com/output.csv"
+        error_message:
+          type: string
+          description: Error message if job failed
+          nullable: true
+          example: "Invalid input data format"
+        options:
+          oneOf:
+            - type: object
+              additionalProperties:
+                type: string
+            - type: array
+              items:
+                type: object
+                required:
+                  - name
+                  - value
+                properties:
+                  name:
+                    type: string
+                  value:
+                    type: string
+          description: Job options as object or array of name/value pairs
+          nullable: true
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request parameters"

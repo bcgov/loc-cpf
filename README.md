@@ -52,14 +52,18 @@ Required fields:
   - `input_data_url` (URL), or
   - `input_data` (raw CSV/TSV text)
 
+Optional fields:
+- `output_file_format` (`csv` or `tsv`, default: `csv`)
+
 Example:
 ```bash
 curl -X POST "0.0.0.0:3000/api/jobs" \
   -H "apikey: <apikey>" \
   -F "endpoint_name=Geocode" \
   -F "input_data_content_type=text/tsv" \
-  -F "output_data_content_type=text/csv" \
-  -F "input_data_file=@/path/to/input.csv"
+  -F "output_file_format=tsv" \
+  -F "output_data_content_type=text/tsv" \
+  -F "input_data_file=@/path/to/input.tsv"
 ```
 
 Create response:
@@ -88,7 +92,8 @@ Response contains status and output URL when ready:
   "output_file_url": "/rails/active_storage/blobs/...",
   "error_file_url": null,
   "error_message": null,
-  "options": []
+  "options": [],
+  "output_file_format": "tsv"
 }
 ```
 
@@ -346,7 +351,7 @@ ApplicationMailer.send_results_ready_email!(
    - marks worker job complete and increments `master_job.completed_jobs`.
 5. After each worker completes, master `generate_result_file` checks completion:
    - when `completed_jobs == total_jobs`, it merges worker output files (ordered by worker id),
-   - writes one combined final output CSV,
+   - writes one combined final output file (`CSV` or `TSV` based on `output_file_format`),
    - attaches final output file to the master job.
 6. Client polls `GET /api/jobs/:id` until status is `completed`, then downloads `output_file_url`.
 
@@ -500,7 +505,8 @@ python3 sample_client_script.py \
   --env local \
   --apikey <your-api-key> \
   --input-file example.tsv \
-  --output-file results.csv \
+  --output-file results.tsv \
+  --output-format tsv \
   --max-wait 120
 ```
 

@@ -31,7 +31,8 @@ parser = argparse.ArgumentParser(description="Submit and poll geocoder job.")
 parser.add_argument("--env", choices=["local", "dev", "test", "prod"], default="dev", required=True, help="Target environment")
 parser.add_argument("--apikey", required=True, help="Kong consumer apikey or local API token")
 parser.add_argument("--input-file", required=True, help="Local input file path OR input URL")
-parser.add_argument("--output-file", default="geocoder_results.csv", help="Local output file path")
+parser.add_argument("--output-file", default="geocoder_results.tsv", help="Local output file path")
+parser.add_argument("--output-format", choices=["csv", "tsv"], default="tsv", help="Requested output format for job result")
 parser.add_argument("--error-file", default=None, help="Optional local error file path (defaults to <output-file>.errors.csv)")
 parser.add_argument("--max-wait", type=int, default=600, help="Max wait time in seconds")
 parser.add_argument("--poll-interval", type=float, default=2.0, help="Polling interval in seconds")
@@ -53,7 +54,8 @@ data = {
     "options[name2]": "value2",
     "options[name3]": "value3",
     "input_data_content_type": "text/tsv" if args.input_file.lower().endswith(".tsv") else "text/csv",
-    "output_data_content_type": "text/tsv" if args.output_file.lower().endswith(".tsv") else "text/csv",
+    "output_file_format": args.output_format,
+    "output_data_content_type": "text/tsv" if args.output_format == "tsv" else "text/csv",
 }
 data.update(auth_params)
 

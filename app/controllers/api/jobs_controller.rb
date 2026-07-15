@@ -4,6 +4,7 @@ require "csv"
 class Api::JobsController < Api::ApplicationController
   DEFAULT_PAGE_SIZE = 25
   MAX_PAGE_SIZE = 100
+  VALID_OUTPUT_FILE_FORMATS = %w[csv tsv].freeze
 
   # list all master jobs for the user
   def index
@@ -60,6 +61,11 @@ class Api::JobsController < Api::ApplicationController
 
       raise Exception, "Unsupported endpoint_name: #{endpoint_name}" unless endpoint_name == "Geocode"
 
+      output_file_format = params[:output_file_format].presence&.downcase || "csv"
+      unless VALID_OUTPUT_FILE_FORMATS.include?(output_file_format)
+        raise Exception, "Unsupported output_file_format: #{output_file_format}. Supported formats are: csv, tsv"
+      end
+
       endpoint = API_PROVIDERS[0]["endpoints"].find { |e| e["name"] == "Geocode" }
       raise Exception, "Geocode endpoint config not found" unless endpoint
 
@@ -74,6 +80,7 @@ class Api::JobsController < Api::ApplicationController
       end
 
       @geocoder_master_job = job_class.new(user: @user, endpoint_name: endpoint_name)
+      @geocoder_master_job.output_file_format = output_file_format
 
       options = endpoint["default_params"].dup
       if params[:options].present?
@@ -107,7 +114,8 @@ class Api::JobsController < Api::ApplicationController
       @geocoder_master_job.api_options = options
 
       @geocoder_master_job.input_data_content_type = params[:input_data_content_type].presence || "text/csv"
-      @geocoder_master_job.output_data_content_type = params[:output_data_content_type].presence || "text/csv"
+      @geocoder_master_job.output_data_content_type =
+        params[:output_data_content_type].presence || (output_file_format == "tsv" ? "text/tsv" : "text/csv")
 
       if params[:input_data].present?
         if params[:input_data_content_type].present? && params[:input_data_content_type] == "application/json"

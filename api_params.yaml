@@ -97,12 +97,17 @@ paths:
                     - text/csv
                     - text/tsv
                   default: text/csv
+                output_file_format:
+                  type: string
+                  description: Final output file format used for the generated result file.
+                  enum: [csv, tsv]
+                  default: csv
+                  example: tsv
                 output_data_content_type:
                   type: string
-                  enum:
-                    - text/csv
-                    - text/tsv
-                  default: text/csv
+                  description: Output MIME type (optional).
+                  enum: [text/csv, text/tsv]
+                  example: text/tsv
                 input_data:
                   type: string
                   description: Input data as string
@@ -156,12 +161,12 @@ paths:
                     - text/csv
                     - text/tsv
                   default: text/csv
-                output_data_content_type:
+                output_file_format:
                   type: string
-                  enum:
-                    - text/csv
-                    - text/tsv
-                  default: text/csv
+                  description: Final output file format used for the generated result file.
+                  enum: [csv, tsv]
+                  default: csv
+                  example: tsv
                 input_data:
                   type: string
                   description: Input data as string
@@ -181,6 +186,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
+              examples:
+                tsvJobCreated:
+                  summary: Job created with TSV output
+                  value:
+                    id: "job-123e4567-e89b-12d3-a456-426614174000"
+                    status: "pending"
+                    created_at: "2023-01-01 00:00:00"
+                    total_rows: 1000
+                    input_file_url: "https://example.com/input.tsv"
+                    output_file_url: "https://example.com/output.tsv"
+                    error_message: null
+                    options:
+                      some_option: "some_value"
+                    output_file_format: tsv
         '401':
           description: Unauthorized - authentication failed
           content:
@@ -386,6 +405,12 @@ components:
                     type: string
           description: Job options as object or array of name/value pairs
           nullable: true
+        output_file_format:
+          type: string
+          description: Requested final output file format for output_file_url.
+          enum: [csv, tsv]
+          default: csv
+          example: tsv
     ErrorResponse:
       type: object
       required:

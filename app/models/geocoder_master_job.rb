@@ -3,6 +3,8 @@ require "stringio"
 require "sidekiq/api"
 
 class GeocoderMasterJob < MasterJob
+  VALID_OUTPUT_FILE_FORMATS = %w[csv tsv].freeze
+
   # after_commit :enqueue_sidekiq_job, on: :create
   # after_commit :generate_result_file_if_ready, on: :update
   
@@ -19,7 +21,8 @@ class GeocoderMasterJob < MasterJob
       output_file_url: attachment_download_url(output_file),
       error_file_url: attachment_download_url(error_file),
       error_message: error_message,
-      options: api_options
+      options: api_options,
+      output_file_format: normalized_output_file_format
     }
   end
 
@@ -88,7 +91,7 @@ class GeocoderMasterJob < MasterJob
 
   # generate the final output file if all worker jobs are completed, and update the master job's output_file attachment and completed_at timestamp
   def generate_result_file
-    return if self.success === false # if master job already marked as failed, skip result generation
+    return if self.success === false
     return if result_created_at.present? && output_file.attached?
     return unless total_jobs.present? && total_jobs != 0 && total_jobs == completed_jobs
 
@@ -96,14 +99,18 @@ class GeocoderMasterJob < MasterJob
     output_headers = endpoint["output_headers"] || []
     raise "output_headers not configured for Geocode endpoint" if output_headers.empty?
 
-    combined_csv = CSV.generate do |csv|
+    file_format = normalized_output_file_format
+    col_sep = file_format == "tsv" ? "\t" : ","
+    content_type = file_format == "tsv" ? "text/tsv" : "text/csv"
+
+    combined_output = CSV.generate(col_sep: col_sep) do |csv|
       csv << output_headers
 
       worker_jobs.order(:id).each do |worker_job|
         next unless worker_job.output_file.attached?
 
         worker_job.output_file.open do |file|
-          CSV.parse(file.read, headers: true).each do |row|
+          parse_tabular_rows(file.read).each do |row|
             csv << output_headers.map { |header| row[header] }
           end
         end
@@ -111,9 +118,9 @@ class GeocoderMasterJob < MasterJob
     end
 
     output_file.attach(
-      io: StringIO.new(combined_csv),
-      filename: "job_#{id}_output.csv",
-      content_type: "text/csv"
+      io: StringIO.new(combined_output),
+      filename: "job_#{id}_output.#{file_format}",
+      content_type: content_type
     )
 
     error_headers = ["sequenceNumber", "yourId", "addressString", "errorMessage"]
@@ -185,5 +192,16 @@ class GeocoderMasterJob < MasterJob
     protocol = app_cfg["public_url_protocol"].presence || ENV["APP_PUBLIC_PROTOCOL"].presence || Rails.application.routes.default_url_options[:protocol]
 
     { host: host, protocol: protocol }.compact
+  end
+
+  def normalized_output_file_format
+    format = output_file_format.to_s.downcase
+    VALID_OUTPUT_FILE_FORMATS.include?(format) ? format : "csv"
+  end
+
+  def parse_tabular_rows(content)
+    first_line = content.to_s.each_line.first.to_s
+    detected_col_sep = first_line.include?("\t") ? "\t" : ","
+    CSV.parse(content, headers: true, col_sep: detected_col_sep)
   end
 end

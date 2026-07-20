@@ -44,8 +44,8 @@ class Api::ApplicationController < ActionController::API
 
   def render_unauthorized
     respond_to do |format|
-      format.json { render json: { error: "Unauthorized" }, status: :unauthorized }
-      format.any { render plain: "api_token is missing or invalid.", status: :unauthorized }
+      format.json { render json: { error: "Unauthorized" }, status: :forbidden }
+      format.any { render plain: "api_token is missing or invalid.", status: :forbidden }
     end
   end
 end

@@ -51,6 +51,8 @@ class Api::JobsController < Api::ApplicationController
 
   # create a new master job
   def create
+    print_request_to_stdout
+
     if ServerStatus.paused?
       return render json: { error: Admin::SettingsController::PAUSED_JOB_SUBMISSION_MESSAGE }, status: :service_unavailable
     end
@@ -152,6 +154,7 @@ class Api::JobsController < Api::ApplicationController
       @geocoder_master_job.enqueue_sidekiq_job
       render json: @geocoder_master_job.to_user_json, status: :created
     rescue Exception => e
+      # logger.error e.backtrace.join("\n")
       render json: { error: "Failed to create job: #{e.message}" }, status: :unprocessable_entity
     end
   end
@@ -194,5 +197,19 @@ class Api::JobsController < Api::ApplicationController
       payload.include?("/GeocoderMasterJob/#{id}") ||
         payload.match?(/"(master_job_id|geocoder_master_job_id|job_id|id)"\s*:\s*"#{Regexp.escape(id)}"/)
     end
+  end
+
+  def print_request_to_stdout
+    header_env = request.headers.env.select do |k, _|
+      k.start_with?("HTTP_") || k == "CONTENT_TYPE" || k == "CONTENT_LENGTH"
+    end
+
+    puts "=== Api::JobsController#create request start ==="
+    puts "method=#{request.request_method} path=#{request.fullpath}"
+    puts "headers=#{header_env.inspect}"
+    puts "params=#{params.to_unsafe_h.inspect}"
+    puts "=== Api::JobsController#create request end ==="
+  rescue => e
+    puts "=== Api::JobsController#create request log failed: #{e.class}: #{e.message} ==="
   end
 end

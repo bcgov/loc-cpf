@@ -154,29 +154,6 @@ curl -X POST "https://geocodertst.api.gov.bc.ca/batch/jobs" \
   -F "input_data_file=@/path/to/input.csv"
 ```
 
-**Example with cURL (URL input):**
-
-```bash
-curl -X POST "https://geocodertst.api.gov.bc.ca/batch/jobs" \
-  -H "apikey: <your-api-key>" \
-  -F "endpoint_name=Geocode" \
-  -F "input_data_url=https://example.com/addresses.csv" \
-  -F "output_file_format=csv"
-```
-
-**Example with cURL (raw data):**
-
-```bash
-curl -X POST "https://geocodertst.api.gov.bc.ca/batch/jobs" \
-  -H "apikey: <your-api-key>" \
-  -F "endpoint_name=Geocode" \
-  -F "input_data_content_type=text/csv" \
-  -F "output_file_format=csv" \
-  -F "input_data=addressString
-2317 MOODY AVE Kamloops, BC
-APT 1 1207 Douglas St, Victoria, BC"
-```
-
 **Success Response (201 Created):**
 
 ```json
@@ -306,7 +283,7 @@ When evaluating the new Batch Geocoder, please consider the following:
 - Was the documentation sufficient to complete testing?
 - Did your input files process successfully?
 - Were the geocoding results as expected?
-- Did you observe any differences compared to the existing CPF?
+- What differences did you notice compared with your current geocoding service or process??
 - Were there any performance, usability, or compatibility issues?
 - Do you have any suggestions for improvements before production release?
 

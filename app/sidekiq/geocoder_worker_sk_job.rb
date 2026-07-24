@@ -228,16 +228,33 @@ class GeocoderWorkerSkJob
   end
 
   def normalize_api_options(raw)
-    value = raw
-    2.times do
-      break unless value.is_a?(String)
-      begin
-        value = JSON.parse(value)
-      rescue JSON::ParserError
-        break
+    return {} if raw.blank?
+    
+    # If already a Hash, return as-is
+    return raw if raw.is_a?(Hash)
+
+    # If an Array, convert to Hash (name/value pairs)
+    if raw.is_a?(Array)
+      return raw.each_with_object({}) do |item, out|
+        next unless item.is_a?(Hash)
+        name = item["name"] || item[:name]
+        value = item["value"] || item[:value]
+        out[name.to_s] = value if name.present?
       end
     end
-    value.is_a?(Hash) ? value : {}
+    
+    # If string, parse as JSON and recurse
+    if raw.is_a?(String)
+      begin
+        parsed = JSON.parse(raw)
+        return normalize_api_options(parsed)  # Recurse to handle array/hash
+      rescue JSON::ParserError => e
+        Rails.logger.warn("Failed to parse api_options as JSON: #{e.message}")
+        return {}
+      end
+    end
+    
+    {}
   end
 
   def build_geocoder_params(default_params:, api_options:, row:, headers:)

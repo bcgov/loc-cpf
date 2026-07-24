@@ -113,7 +113,9 @@ class Api::JobsController < Api::ApplicationController
             raise Exception, "options must be an array or object"
           end
       end
-      @geocoder_master_job.api_options = options
+      
+      # Store as JSON string (will be deserialized by ActiveRecord)
+      @geocoder_master_job.api_options = options.to_json
 
       @geocoder_master_job.input_data_content_type = params[:input_data_content_type].presence || "text/csv"
       @geocoder_master_job.output_data_content_type =

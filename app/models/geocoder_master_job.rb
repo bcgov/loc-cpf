@@ -111,6 +111,8 @@ class GeocoderMasterJob < MasterJob
 
         worker_job.output_file.open do |file|
           parse_tabular_rows(file.read).each do |row|
+            next if failed_output_row?(row)
+
             csv << output_headers.map { |header| row[header] }
           end
         end
@@ -124,14 +126,18 @@ class GeocoderMasterJob < MasterJob
     )
 
     error_headers = ["sequenceNumber", "yourId", "addressString", "errorMessage"]
+    error_file_format = normalized_output_file_format
+    error_col_sep = error_file_format == "tsv" ? "\t" : ","
+    error_content_type = error_file_format == "tsv" ? "text/tsv" : "text/csv"
+
     failed_rows = 0
-    combined_error_csv = CSV.generate do |csv|
+    combined_error_data = CSV.generate(col_sep: error_col_sep) do |csv|
       csv << error_headers
       worker_jobs.order(:id).each do |worker_job|
         next unless worker_job.error_file.attached?
 
         worker_job.error_file.open do |file|
-          CSV.parse(file.read, headers: true).each do |row|
+          parse_tabular_rows(file.read).each do |row|
             values = error_headers.map { |h| row[h] }
             next if values.all?(&:blank?)
 
@@ -144,9 +150,9 @@ class GeocoderMasterJob < MasterJob
 
     if failed_rows > 0
       error_file.attach(
-        io: StringIO.new(combined_error_csv),
-        filename: "job_#{id}_errors.csv",
-        content_type: "text/csv"
+        io: StringIO.new(combined_error_data),
+        filename: "job_#{id}_errors.#{error_file_format}",
+        content_type: error_content_type
       )
       update_columns(result_created_at: Time.current, error_message: "Completed with #{failed_rows} failed rows")
     else
@@ -203,5 +209,15 @@ class GeocoderMasterJob < MasterJob
     first_line = content.to_s.each_line.first.to_s
     detected_col_sep = first_line.include?("\t") ? "\t" : ","
     CSV.parse(content, headers: true, col_sep: detected_col_sep)
+  end
+
+  def failed_output_row?(row)
+    result_number = row["resultNumber"].to_s.strip
+    return true if result_number == "0"
+
+    # defensive fallback for rows with no usable geocode result fields
+    full_address = row["fullAddress"].to_s.strip
+    score = row["score"].to_s.strip
+    result_number.blank? && full_address.blank? && (score.blank? || score == "0")
   end
 end

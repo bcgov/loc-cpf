@@ -33,7 +33,11 @@ parser.add_argument("--apikey", required=True, help="Kong consumer apikey or loc
 parser.add_argument("--input-file", required=True, help="Local input file path OR input URL")
 parser.add_argument("--output-file", default="geocoder_results.tsv", help="Local output file path")
 parser.add_argument("--output-format", choices=["csv", "tsv"], default="tsv", help="Requested output format for job result")
-parser.add_argument("--error-file", default=None, help="Optional local error file path (defaults to <output-file>.errors.csv)")
+parser.add_argument(
+    "--error-file",
+    default=None,
+    help="Optional local error file path (defaults to <output-file>.errors.<csv|tsv> based on --output-format)"
+)
 parser.add_argument("--max-wait", type=int, default=600, help="Max wait time in seconds")
 parser.add_argument("--poll-interval", type=float, default=2.0, help="Polling interval in seconds")
 args = parser.parse_args()
@@ -107,7 +111,8 @@ if error_url:
     if error_url.startswith("/"):
         error_url = urljoin(origin, error_url)
 
-    error_file_path = args.error_file or f"{args.output_file}.errors.csv"
+    error_ext = "tsv" if args.output_format == "tsv" else "csv"
+    error_file_path = args.error_file or f"{args.output_file}.errors.{error_ext}"
     log(f"Error file found. Downloading from: {error_url}")
 
     err_resp = requests.get(error_url, params=auth_params, headers=headers, stream=True, timeout=120)

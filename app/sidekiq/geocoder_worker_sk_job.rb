@@ -138,15 +138,20 @@ class GeocoderWorkerSkJob
       )
 
       if error_rows.any?
-        error_csv = CSV.generate do |out|
+        error_is_tsv = job.output_data_content_type.to_s.downcase.include?("tsv")
+        error_col_sep = error_is_tsv ? "\t" : ","
+        error_ext = error_is_tsv ? "tsv" : "csv"
+        error_content_type = error_is_tsv ? "text/tsv" : "text/csv"
+
+        error_csv = CSV.generate(col_sep: error_col_sep) do |out|
           out << ERROR_HEADERS
           error_rows.each { |r| out << r }
         end
 
         job.error_file.attach(
           io: StringIO.new(error_csv),
-          filename: "job_#{job.id}_errors.csv",
-          content_type: "text/csv"
+          filename: "job_#{job.id}_errors.#{error_ext}",
+          content_type: error_content_type
         )
       else
         job.error_file.purge if job.error_file.attached?
@@ -210,6 +215,8 @@ class GeocoderWorkerSkJob
       out[k.to_s] = v
     end
     uri.query = URI.encode_www_form(query)
+
+    # puts "--- querying Geocoder API: #{uri} ---"
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")

@@ -103,9 +103,7 @@ class GeocoderMasterJob < MasterJob
     col_sep = file_format == "tsv" ? "\t" : ","
     content_type = file_format == "tsv" ? "text/tsv" : "text/csv"
 
-    combined_output = CSV.generate(col_sep: col_sep) do |csv|
-      csv << output_headers
-
+    combined_output = generate_tabular_with_quoted_headers(headers: output_headers, col_sep: col_sep) do |csv|
       worker_jobs.order(:id).each do |worker_job|
         next unless worker_job.output_file.attached?
 
@@ -131,8 +129,7 @@ class GeocoderMasterJob < MasterJob
     error_content_type = error_file_format == "tsv" ? "text/tsv" : "text/csv"
 
     failed_rows = 0
-    combined_error_data = CSV.generate(col_sep: error_col_sep) do |csv|
-      csv << error_headers
+    combined_error_data = generate_tabular_with_quoted_headers(headers: error_headers, col_sep: error_col_sep) do |csv|
       worker_jobs.order(:id).each do |worker_job|
         next unless worker_job.error_file.attached?
 
@@ -219,5 +216,13 @@ class GeocoderMasterJob < MasterJob
     full_address = row["fullAddress"].to_s.strip
     score = row["score"].to_s.strip
     result_number.blank? && full_address.blank? && (score.blank? || score == "0")
+  end
+
+  def generate_tabular_with_quoted_headers(headers:, col_sep:)
+    header_line = CSV.generate_line(headers, col_sep: col_sep, force_quotes: true)
+    body = CSV.generate(col_sep: col_sep) do |csv|
+      yield(csv) if block_given?
+    end
+    "#{header_line}#{body}"
   end
 end

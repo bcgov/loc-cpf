@@ -206,7 +206,7 @@ parcelPoint: ""
 The output file includes the following fields when available:
 
 - `yourId` (if specified)
-- `sequenceNumber` (if specified)
+- `sequenceNumber` (auto-generated row number)
 - `executionTime`
 - `faults` (if present)
 

@@ -125,29 +125,58 @@ class Api::JobsController < Api::ApplicationController
         if params[:input_data_content_type].present? && params[:input_data_content_type] == "application/json"
           csv_content = convert_json_input_to_csv(params[:input_data])
           @geocoder_master_job.input_data_content_type = "text/csv"
+          normalized_content = normalize_input_with_sequence_number(csv_content, "text/csv")
           @geocoder_master_job.input_file.attach(
-            io: StringIO.new(csv_content),
+            io: StringIO.new(normalized_content),
             filename: "input_#{Time.current.to_i}.csv",
             content_type: "text/csv"
           )
         elsif params[:input_data_content_type].present? && (params[:input_data_content_type] == "text/csv" || params[:input_data_content_type] == "text/tsv")
-          csv_content = params[:input_data].to_s
+          content_type = params[:input_data_content_type]
+          @geocoder_master_job.input_data_content_type = content_type
+          normalized_content = normalize_input_with_sequence_number(params[:input_data].to_s, content_type)
+          ext = content_type == "text/tsv" ? "tsv" : "csv"
           @geocoder_master_job.input_file.attach(
-            io: StringIO.new(csv_content),
-            filename: "input_#{Time.current.to_i}.csv",
-            content_type: @geocoder_master_job.input_data_content_type || "text/csv"
+            io: StringIO.new(normalized_content),
+            filename: "input_#{Time.current.to_i}.#{ext}",
+            content_type: content_type
           )
         elsif params[:input_data_content_type].blank?
           raise Exception, "input_data_content_type is required when input_data is provided"
         else
           raise Exception, "Unsupported input_data_content_type: #{@geocoder_master_job.input_data_content_type}. The supported content types are: text/csv, text/tsv, application/json"
         end
-        
+
       elsif params[:input_data_url].present?
         url = params[:input_data_url]
-        @geocoder_master_job.input_file.attach(io: URI.open(url), filename: File.basename(URI.parse(url).path))
+        url_filename = File.basename(URI.parse(url).path.presence || "input.csv")
+        detected_content_type = params[:input_data_content_type].presence || infer_tabular_content_type_from_filename(url_filename)
+        @geocoder_master_job.input_data_content_type = detected_content_type
+
+        raw_content = URI.open(url).read
+        normalized_content = normalize_input_with_sequence_number(raw_content, detected_content_type)
+        ext = detected_content_type == "text/tsv" ? "tsv" : "csv"
+
+        @geocoder_master_job.input_file.attach(
+          io: StringIO.new(normalized_content),
+          filename: "input_#{Time.current.to_i}.#{ext}",
+          content_type: detected_content_type
+        )
       elsif params[:input_data_file].present?
-        @geocoder_master_job.input_file.attach(params[:input_data_file])
+        uploaded = params[:input_data_file]
+        detected_content_type = params[:input_data_content_type].presence || infer_tabular_content_type_from_filename(uploaded.original_filename.to_s)
+        @geocoder_master_job.input_data_content_type = detected_content_type
+
+        uploaded.rewind if uploaded.respond_to?(:rewind)
+        raw_content = uploaded.read
+        normalized_content = normalize_input_with_sequence_number(raw_content, detected_content_type)
+        ext = detected_content_type == "text/tsv" ? "tsv" : "csv"
+
+        @geocoder_master_job.input_file.attach(
+          io: StringIO.new(normalized_content),
+          filename: "input_#{Time.current.to_i}.#{ext}",
+          content_type: detected_content_type
+        )
       else
         raise Exception, "input data is required"
       end
@@ -213,5 +242,29 @@ class Api::JobsController < Api::ApplicationController
     puts "=== Api::JobsController#create request end ==="
   rescue => e
     puts "=== Api::JobsController#create request log failed: #{e.class}: #{e.message} ==="
+  end
+
+  def infer_tabular_content_type_from_filename(filename)
+    filename.to_s.downcase.end_with?(".tsv") ? "text/tsv" : "text/csv"
+  end
+
+  def normalize_input_with_sequence_number(content, content_type)
+    delimiter = content_type.to_s.downcase.include?("tsv") ? "\t" : ","
+    parsed = CSV.parse(content.to_s, headers: true, col_sep: delimiter)
+    headers = parsed.headers&.dup || []
+    raise Exception, "Input data must include a header row" if headers.empty?
+
+    headers.unshift("sequenceNumber") unless headers.include?("sequenceNumber")
+
+    CSV.generate(col_sep: delimiter) do |csv|
+      csv << headers
+      parsed.each_with_index do |row, idx|
+        row_hash = row.to_h
+        seq = (idx + 1).to_s
+        csv << headers.map { |h| h == "sequenceNumber" ? seq : row_hash[h] }
+      end
+    end
+  rescue CSV::MalformedCSVError => e
+    raise Exception, "Invalid CSV/TSV input: #{e.message}"
   end
 end

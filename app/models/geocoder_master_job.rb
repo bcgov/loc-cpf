@@ -99,11 +99,13 @@ class GeocoderMasterJob < MasterJob
     output_headers = endpoint["output_headers"] || []
     raise "output_headers not configured for Geocode endpoint" if output_headers.empty?
 
+    final_output_headers = output_headers.reject { |h| h == "sid" }
+
     file_format = normalized_output_file_format
     col_sep = file_format == "tsv" ? "\t" : ","
     content_type = file_format == "tsv" ? "text/tsv" : "text/csv"
 
-    combined_output = generate_tabular_with_quoted_headers(headers: output_headers, col_sep: col_sep) do |csv|
+    combined_output = generate_tabular_with_quoted_headers(headers: final_output_headers, col_sep: col_sep) do |csv|
       worker_jobs.order(:id).each do |worker_job|
         next unless worker_job.output_file.attached?
 
@@ -111,7 +113,7 @@ class GeocoderMasterJob < MasterJob
           parse_tabular_rows(file.read).each do |row|
             next if failed_output_row?(row)
 
-            csv << output_headers.map { |header| row[header] }
+            csv << final_output_headers.map { |header| row[header] }
           end
         end
       end

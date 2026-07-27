@@ -328,6 +328,6 @@ class GeocoderWorkerSkJob
       nil
     end
 
-    formatted.any? ? "[#{formatted.join(', ')}]" : ""
+    formatted.any? ? "[#{formatted.join(', ')}]" : "[]"
   end
 end

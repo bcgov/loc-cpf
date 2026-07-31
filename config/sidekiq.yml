@@ -2,4 +2,5 @@
 :queues:
   - [default, 100]
   - [geocoder_master_sk_job, 100]
+  - [geocoder_merge_sk_job, 100]
   - [geocoder_worker_sk_job, 50]

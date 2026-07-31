@@ -1,6 +1,9 @@
 class MasterJob < Job
   has_many :worker_jobs, -> { where(type: ["WorkerJob", "GeocoderWorkerJob"]) }, class_name: "Job", foreign_key: :master_job_id, dependent: :destroy
 
+  has_many :merge_jobs, -> { where(type: ["MergeJob", "GeocoderMergeJob"]) }, class_name: "Job", foreign_key: :master_job_id, dependent: :destroy
+
+
   def get_status
     if completed_at.present? # master job has finished splitting/creating worker jobs
       if worker_jobs.any? { |job| job.get_status == "failed" }

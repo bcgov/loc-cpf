@@ -1,4 +1,4 @@
-class GeocoderWorkerJob < WorkerJob
+class GeocoderMergeJob < MergeJob
 
   def sidekiq_status
     return "completed" if completed_at.present?
@@ -19,12 +19,11 @@ class GeocoderWorkerJob < WorkerJob
   end
 
   def enqueue_sidekiq_job
-    # submit a sidekiq job to process this worker job
+    # submit a sidekiq job to process this merge job
     return if jid.present?
 
-    run_at = 10.seconds.from_now
-    enqueued_jid = GeocoderWorkerSkJob.perform_at(run_at, id)
-
+    run_at = 2.seconds.from_now
+    enqueued_jid = GeocoderMergeSkJob.perform_at(run_at, id)
     # store jid_history as JSON text: ["jid1","jid2",...]
     history =
       begin

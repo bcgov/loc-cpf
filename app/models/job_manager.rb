@@ -2,27 +2,34 @@
 # the jobs are properly enqueued, started or failed expecially from
 # system failures.
 class JobManager
+  NON_TERMINAL_STATUSES = %w[submitted scheduled in_progress finalizing].freeze
+  DEFAULT_MASTER_RETENTION_DAYS = 7
+  DEFAULT_COMPONENT_CHECK_GRACE_SECONDS = 600
 
   # the main method to check all jobs and ensure they are enqueued, started or failed properly.
   # This method is called periodically by a cronjob to ensure the jobs are properly managed.
   # The general recovery plan
-  # - The system is not expected to be HA 24/7 service. We allow some interruption such as cluster failure to happen. However, after the interruption the service should be self healing: 
+  # - The system is not expected to be HA 24/7 service. We allow some interruption such as pod crash and cluster failure to happen. 
+  #   However, after the interruption the service should be self healing: 
   #   All apps and components should self heal to the state before the failure automatically (system level)
   #   All submitted jobs should retry and completes (application/data level). 
   #   Partially submitted jobs will be ignored
-  # - A Reconciler CronJob runs periodically to scan MySQL for jobs in non-terminal states (for example: submitted, scheduled, in_progress, finalizing). It compares database state with Redis/Valkey queue state and detects interrupted or missing enqueued work.
+  # - A Reconciler CronJob runs periodically to scan MySQL for jobs in non-terminal states (for example: submitted, scheduled, in_progress, finalizing).
+  #   It compares database state with Redis/Valkey queue state and detects interrupted or missing enqueued work.
   #   If a job is recoverable, the reconciler re-enqueues missing master/worker jobs. If a job exceeds timeout or retry limits, it is marked failed with a clear error_message.
   # - The reconciler also handles long-running stale jobs by stopping/re-enqueuing them when safe and idempotent.
   #   If required artifacts are missing (for example input/output files in SeaweedFS, or required job metadata in MySQL), the job is treated as non-recoverable and marked failed gracefully.
   def self.check_jobs
-    non_terminal_statuses = %w[submitted scheduled in_progress finalizing]
+    cleanup_old_master_jobs!
 
-    Job.find_each do |job|
+    MasterJob.find_each do |master_job|
       begin
-        next unless non_terminal_statuses.include?(job.get_status)
-        reconcile_job(job)
+        next if master_job.is_terminal_status?
+        next unless NON_TERMINAL_STATUSES.include?(master_job.get_status)
+
+        reconcile_master_job(master_job)
       rescue => e
-        Rails.logger.error("[JobManager] reconcile error job_id=#{job&.id}: #{e.class}: #{e.message}")
+        Rails.logger.error("[JobManager] reconcile error master_job_id=#{master_job&.id}: #{e.class}: #{e.message}")
       end
     end
   end
@@ -30,52 +37,95 @@ class JobManager
   class << self
     private
 
-    def reconcile_job(job)
-      job.reload if job.respond_to?(:reload)
-      return if job.is_terminal_status? # double check the status after acquiring lock, in case it has been updated by other process
+    def reconcile_master_job(master_job)
+      master_job.reload if master_job.respond_to?(:reload)
+      return if master_job.is_terminal_status?
 
-      if job.is_missing_required_artifacts?
-        return job.update!(
-          completed_at: Time.current,
-          success: false,
-          error_message: "Non-recoverable: required artifacts/metadata are missing"
+      if master_job.is_missing_required_artifacts?
+        return fail_master!(master_job, "Non-recoverable: required artifacts/metadata are missing")
+      end
+
+      if master_job.reach_max_attempts?
+        return fail_master!(master_job, "Recovery limits exceeded: timeout or retry limit reached")
+      end
+
+      # Master still splitting/creating worker jobs; do not assert component existence yet.
+      return unless master_job.completed_at.present?
+
+      expected_workers = master_job.total_jobs.to_i
+      actual_workers = master_job.worker_jobs.count
+
+      if expected_workers <= 0
+        return fail_master_if_past_grace!(
+          master_job,
+          "Master completed but no worker jobs were created",
+          master_job.completed_at
         )
       end
 
-      if job.reach_max_attempts?
-        return job.update!(
-          completed_at: Time.current,
-          success: false,
-          error_message: "Recovery limits exceeded: timeout or retry limit reached"
+      if actual_workers < expected_workers
+        return fail_master_if_past_grace!(
+          master_job,
+          "Worker jobs missing (expected=#{expected_workers}, actual=#{actual_workers})",
+          master_job.completed_at
         )
       end
 
-      # let's skip stale check for now
-      # if job.is_stale?
-      #   # restart job if it is safely recoverable (for example, the job is idempotent and can be safely re-enqueued without side effects); 
-      #   # otherwise, mark it failed to avoid potential issues from unsafe retries 
-      #   # note: we changed the stale definition so it will be jobs that has been started but
-      #   # is not found in worker list. We assume all jobs will end eventually because it makes
-      #   # api calls with timeout settings. So we just need to reenqueue the job if it is stale, no need to stop them.
-      #   if job.kind_of?(MasterJob)
-      #     job.reenqueue_sidekiq_job
-      #   elsif job.kind_of?(WorkerJob)
-      #     job.reenqueue_sidekiq_job
-      #   else
-      #     Rails.logger.warn("Unknown job type for job_id=#{job.id}, cannot reconcile")
-      #   end
-      # end
+      # Merge job is expected only after all workers are complete and result not yet created.
+      workers_done = master_job.completed_jobs.to_i >= expected_workers
+      merge_missing = master_job.merge_jobs.count == 0
+      result_not_created = master_job.result_created_at.blank?
 
-      if job.missing_from_all_sidekiq_states?
-        # job is non-terminal, not running, and not found in queue/scheduled/retry/dead
-        if job.kind_of?(MasterJob)
-          job.reenqueue_sidekiq_job
-        elsif job.kind_of?(WorkerJob)
-          job.reenqueue_sidekiq_job
-        else
-          Rails.logger.warn("Unknown job type for job_id=#{job.id}, cannot reconcile")
+      if workers_done && result_not_created && merge_missing
+        anchor_time = master_job.worker_jobs.maximum(:completed_at) || master_job.updated_at || master_job.completed_at
+        return fail_master_if_past_grace!(
+          master_job,
+          "Merge job missing after all workers completed",
+          anchor_time
+        )
+      end
+    end
+
+    def cleanup_old_master_jobs!
+      cutoff = Time.current - master_job_retention_days.days
+
+      MasterJob.where("created_at < ?", cutoff).find_each do |master_job|
+        begin
+          master_job.destroy!
+          Rails.logger.info("[JobManager] deleted old master job id=#{master_job.id}, created_at=#{master_job.created_at}")
+        rescue => e
+          Rails.logger.error("[JobManager] failed deleting old master job id=#{master_job.id}: #{e.class}: #{e.message}")
         end
       end
+    end
+
+    def fail_master_if_past_grace!(master_job, message, anchor_time)
+      return if anchor_time.blank?
+      return if (Time.current - anchor_time) < component_check_grace_seconds
+
+      fail_master!(master_job, message)
+    end
+
+    def fail_master!(master_job, message)
+      master_job.update!(
+        completed_at: Time.current,
+        success: false,
+        error_message: message.to_s.truncate(255)
+      )
+    end
+
+    def job_manager_options
+      CPF_CONFIG["job_manager_options"] || {}
+    end
+
+    def master_job_retention_days
+      val = job_manager_options["master_job_retention_days"].to_i
+      val.positive? ? val : DEFAULT_MASTER_RETENTION_DAYS
+    end
+
+    def component_check_grace_seconds
+      val = job_manager_options["component_check_grace_seconds"].to_i
+      val.positive? ? val : DEFAULT_COMPONENT_CHECK_GRACE_SECONDS
     end
   end
 end

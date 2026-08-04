@@ -99,4 +99,11 @@ data:
     app_options:
       public_url_host: "0.0.0.0:3000"
       public_url_protocol: "http"
+    job_manager_options:
+      # Delete master jobs (and dependent worker/merge jobs) older than this many days
+      master_job_retention_days: 7
+
+      # Grace window before failing a master for missing worker/merge components
+      # to avoid false positives during in-flight creation
+      component_check_grace_seconds: 600
 

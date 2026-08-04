@@ -34,7 +34,7 @@ class GeocoderMergeSkJob
           started_at: Time.now,
           completed_at: Time.now,
           success: false,
-          error_message: "worker_skipped: master job failed".truncate(255)
+          error_message: "merge_skipped: master job failed".truncate(255)
         )
         return
       end
@@ -43,24 +43,29 @@ class GeocoderMergeSkJob
     ### perform merge task
     begin
       job.update!(started_at: Time.now)
-
       master_job = job.master_job
 
-      # return if self.success === false
-      # return if result_created_at.present? && output_file.attached?
-      # return unless total_jobs.present? && total_jobs != 0 && total_jobs == completed_jobs
       if master_job.success === false
-        # skip this job
-        job.error_message = "Master job is already marked as failed." if job.error_message.blank?
-        job.save!
+        job.update!(
+          completed_at: Time.now,
+          success: false,
+          error_message: "Master job is already marked as failed.".truncate(255)
+        )
+        return
       elsif master_job.result_created_at.present? && master_job.output_file.attached?
-        # skip this job
-        job.error_message = "Results have already been created." if job.error_message.blank?
-        job.save!
+        job.update!(
+          completed_at: Time.now,
+          success: true,
+          error_message: "Results have already been created.".truncate(255)
+        )
+        return
       elsif master_job.total_jobs.blank? || master_job.total_jobs == 0 || master_job.total_jobs != master_job.completed_jobs
-        # skip this job
-        job.error_message = "Master job is empty or is not yet completed." if job.error_message.blank?
-        job.save!
+        job.update!(
+          completed_at: Time.now,
+          success: false,
+          error_message: "Master job is empty or is not yet completed.".truncate(255)
+        )
+        return
       end
 
       endpoint = API_PROVIDERS[0]["endpoints"].find { |e| e["name"] == "Geocode" }

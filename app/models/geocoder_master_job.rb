@@ -6,7 +6,6 @@ class GeocoderMasterJob < MasterJob
   VALID_OUTPUT_FILE_FORMATS = %w[csv tsv].freeze
 
   # after_commit :enqueue_sidekiq_job, on: :create
-  # after_commit :generate_result_file_if_ready, on: :update
   
 
   def to_user_json
@@ -70,8 +69,6 @@ class GeocoderMasterJob < MasterJob
 
   # method is used to check if all worker jobs are completed, and if so,
   # generate the final output file for the master job; 
-  # this is called by the worker jobs after they are requeued or re-run because
-  # in that case we do not know if the worker job has increased completed_jobs count or not 
   def check_worker_jobs_completion
     return if self.success === false # if master job already marked as failed, skip result generation
     return unless total_jobs.present? && total_jobs != 0
@@ -102,11 +99,6 @@ class GeocoderMasterJob < MasterJob
       output_file.purge
       update_columns(result_created_at: nil)
     end
-  end
-
-  # generate the final output file if all worker jobs are completed, and update the master job's output_file attachment and completed_at timestamp
-  def generate_result_file
-   
   end
 
   def sidekiq_status

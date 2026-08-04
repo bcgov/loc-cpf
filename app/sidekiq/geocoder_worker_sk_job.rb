@@ -168,7 +168,7 @@ class GeocoderWorkerSkJob
       # step 4: update master job's completed_jobs count atomically
       if job.master_job_id.present?
         Job.increment_counter(:completed_jobs, job.master_job_id)
-        job.master_job.generate_result_file
+        job.master_job.check_worker_jobs_completion
       end
     rescue => e
       job.update!(

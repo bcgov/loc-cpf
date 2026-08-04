@@ -303,6 +303,7 @@ Queue config:
 - `config/sidekiq.yml` defines queues and weights:
   - `geocoder_master_sk_job`
   - `geocoder_worker_sk_job`
+  - `geocoder_merge_sk_job`
   - `default`
 - Worker concurrency is set in Sidekiq config (`:concurrency: 5`).
 
@@ -331,7 +332,7 @@ ApplicationMailer.send_results_ready_email!(
 )
 ```
 
-## 3) Work logic (master job -> worker jobs -> joined result)
+## 3) Work logic (master job -> worker jobs -> merge job -> final result)
 
 1. User submits `POST /api/jobs` with endpoint `Geocode` and input data.
 2. `Api::JobsController#create` validates request, creates `GeocoderMasterJob`, attaches input file, saves API options/content-type, and enqueues the master Sidekiq job.
@@ -347,13 +348,17 @@ ApplicationMailer.send_results_ready_email!(
    - builds request parameters from endpoint defaults + job options + row values,
    - calls BC Address Geocoder API (`addresses.json`),
    - writes normalized output rows,
-   - attaches worker output CSV to Active Storage,
+   - attaches worker output file to Active Storage,
    - marks worker job complete and increments `master_job.completed_jobs`.
-5. After each worker completes, master `generate_result_file` checks completion:
-   - when `completed_jobs == total_jobs`, it merges worker output files (ordered by worker id),
-   - writes one combined final output file (`CSV` or `TSV` based on `output_file_format`),
-   - attaches final output file to the master job.
-6. Client polls `GET /api/jobs/:id` until status is `completed`, then downloads `output_file_url`.
+5. After each worker completes, `master_job.check_worker_jobs_completion` runs:
+   - when `completed_jobs == total_jobs`, it creates a `GeocoderMergeJob` (if none exists),
+   - enqueues `GeocoderMergeSkJob`.
+6. `GeocoderMergeSkJob` executes:
+   - validates master completion state,
+   - merges worker output files into one final output file (`CSV` or `TSV` based on `output_file_format`),
+   - merges worker error files into one final error file when applicable,
+   - updates `master_job.result_created_at`, `error_message`, and completion state.
+7. Client polls `GET /api/jobs/:id` until status is `completed`, then downloads `output_file_url`.
 
 Typical statuses observed from model logic:
 - `submitted`, `scheduled`, `in_progress`, `finalizing`, `completed`, `failed`, `terminated`
@@ -411,18 +416,27 @@ Then:
 ### 4.3 Master result generation and error file merging
 
 After all workers complete:
-1. Master merges all worker output files into one final `output_file`.
-2. Master checks if any worker has a non-empty `error_file`.
-3. If worker error files exist:
-   - Master merges all worker error files into one master `error_file` (same CSV format).
-   - Master sets `error_message` to indicate total count of failed rows across all workers.
-   - Master status becomes `completed` (despite partial failures).
-4. If no worker error files exist:
+1. Master creates/enqueues a merge job (`GeocoderMergeJob` / `GeocoderMergeSkJob`).
+2. Merge job merges all worker output files into one final `output_file`.
+3. Merge job checks if any worker has a non-empty `error_file`.
+4. If worker error files exist:
+   - Merge job merges all worker error files into one master `error_file` (same output format family as job output).
+   - Master `error_message` indicates total count of failed rows.
+   - Master status becomes `completed` (partial failures).
+5. If no worker error files exist:
    - Master `error_file` is purged.
    - Master `error_message` is cleared.
    - Master status becomes `completed` (fully successful).
 
-### 4.4 API response with errors
+### 4.4 Merge job errors (fatal merge-stage failures)
+
+If merge processing fails (for example: output/error file attach failure, malformed worker artifact, storage read/write failure):
+- Merge job is marked `success: false` with `completed_at` set.
+- Master job is marked `success: false` with `completed_at` set.
+- `error_message` is populated (truncated to 255 chars).
+- Final status becomes `failed`.
+
+### 4.5 API response with errors
 
 Job status response includes:
 ```json
@@ -451,7 +465,7 @@ Clients should:
 - If `status == "completed"` and `error_message` is present, download both `output_file_url` and `error_file_url` to see successful and failed rows separately.
 - If `status == "failed"`, check `error_message` for the reason and retry if appropriate.
 
-### 4.5 Job retry policy
+### 4.6 Job retry policy
 
 - Sidekiq jobs have `retry: false` (no automatic retries).
 - Transient failures (network hiccups, temporary database unavailability) will cause the job to be marked as failed immediately.

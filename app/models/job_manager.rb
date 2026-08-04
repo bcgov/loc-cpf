@@ -20,9 +20,7 @@ class JobManager
   # - The reconciler also handles long-running stale jobs by stopping/re-enqueuing them when safe and idempotent.
   #   If required artifacts are missing (for example input/output files in SeaweedFS, or required job metadata in MySQL), the job is treated as non-recoverable and marked failed gracefully.
   def self.check_jobs
-    cleanup_old_master_jobs!
-
-    MasterJob.find_each do |master_job|
+    Job.where("type = 'GeocoderMasterJob'").find_each do |master_job|
       begin
         next if master_job.is_terminal_status?
         next unless NON_TERMINAL_STATUSES.include?(master_job.get_status)
@@ -30,6 +28,21 @@ class JobManager
         reconcile_master_job(master_job)
       rescue => e
         Rails.logger.error("[JobManager] reconcile error master_job_id=#{master_job&.id}: #{e.class}: #{e.message}")
+      end
+    end
+  end
+
+  def self.cleanup_old_master_jobs
+    cutoff = Time.current - master_job_retention_days.days
+    Rails.logger.info("[JobManager] cleaning up master jobs older than #{cutoff} (#{master_job_retention_days} days)")
+
+    Job.where("type = 'GeocoderMasterJob' AND created_at < ?", cutoff).find_each do |master_job|
+      begin
+        Rails.logger.info("[JobManager] deleting old master job id=#{master_job.id}, created_at=#{master_job.created_at}")  
+        master_job.destroy!
+        Rails.logger.info("[JobManager] deleted old master job id=#{master_job.id}, created_at=#{master_job.created_at}")
+      rescue => e
+        Rails.logger.error("[JobManager] failed deleting old master job id=#{master_job.id}: #{e.class}: #{e.message}")
       end
     end
   end
@@ -86,18 +99,7 @@ class JobManager
       end
     end
 
-    def cleanup_old_master_jobs!
-      cutoff = Time.current - master_job_retention_days.days
-
-      MasterJob.where("created_at < ?", cutoff).find_each do |master_job|
-        begin
-          master_job.destroy!
-          Rails.logger.info("[JobManager] deleted old master job id=#{master_job.id}, created_at=#{master_job.created_at}")
-        rescue => e
-          Rails.logger.error("[JobManager] failed deleting old master job id=#{master_job.id}: #{e.class}: #{e.message}")
-        end
-      end
-    end
+    
 
     def fail_master_if_past_grace!(master_job, message, anchor_time)
       return if anchor_time.blank?

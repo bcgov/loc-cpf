@@ -54,7 +54,7 @@ class JobManager
       master_job.reload if master_job.respond_to?(:reload)
       return if master_job.is_terminal_status?
 
-      if master_job.is_missing_required_artifacts?
+      if master_job_missing_required_artifacts?(master_job)
         return fail_master!(master_job, "Non-recoverable: required artifacts/metadata are missing")
       end
 
@@ -99,7 +99,14 @@ class JobManager
       end
     end
 
-    
+    def master_job_missing_required_artifacts?(master_job)
+      return true if master_job.endpoint_name.blank?
+      return true unless master_job.respond_to?(:input_file) && master_job.input_file.attached?
+      false
+    rescue => e
+      Rails.logger.warn("[JobManager] artifact check failed for master_job_id=#{master_job&.id}: #{e.class}: #{e.message}")
+      true
+    end
 
     def fail_master_if_past_grace!(master_job, message, anchor_time)
       return if anchor_time.blank?

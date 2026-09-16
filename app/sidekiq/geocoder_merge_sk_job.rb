@@ -1,5 +1,5 @@
 require "csv"
-require "stringio"
+require "tempfile"
 require "net/http"
 require "uri"
 
@@ -41,6 +41,8 @@ class GeocoderMergeSkJob
     end
 
     ### perform merge task
+    combined_output_file = nil
+    combined_error_file = nil
     begin
       job.update!(started_at: Time.now)
       master_job = job.master_job
@@ -78,12 +80,12 @@ class GeocoderMergeSkJob
       col_sep = file_format == "tsv" ? "\t" : ","
       content_type = file_format == "tsv" ? "text/tsv" : "text/csv"
 
-      combined_output = generate_tabular_with_quoted_headers(headers: final_output_headers, col_sep: col_sep) do |csv|
+      combined_output_file = build_tabular_tempfile(headers: final_output_headers, col_sep: col_sep) do |csv|
         master_job.worker_jobs.order(:id).each do |worker_job|
           next unless worker_job.output_file.attached?
 
           worker_job.output_file.open do |file|
-            parse_tabular_rows(file.read).each do |row|
+            each_tabular_row(file) do |row|
               next if failed_output_row?(row)
 
               csv << final_output_headers.map { |header| row[header] }
@@ -93,7 +95,7 @@ class GeocoderMergeSkJob
       end
 
       master_job.output_file.attach(
-        io: StringIO.new(combined_output),
+        io: combined_output_file,
         filename: "job_#{job.id}_output.#{file_format}",
         content_type: content_type
       )
@@ -104,12 +106,12 @@ class GeocoderMergeSkJob
       error_content_type = error_file_format == "tsv" ? "text/tsv" : "text/csv"
 
       failed_rows = 0
-      combined_error_data = generate_tabular_with_quoted_headers(headers: error_headers, col_sep: error_col_sep) do |csv|
+      combined_error_file = build_tabular_tempfile(headers: error_headers, col_sep: error_col_sep) do |csv|
         master_job.worker_jobs.order(:id).each do |worker_job|
           next unless worker_job.error_file.attached?
 
           worker_job.error_file.open do |file|
-            parse_tabular_rows(file.read).each do |row|
+            each_tabular_row(file) do |row|
               values = error_headers.map { |h| row[h] }
               next if values.all?(&:blank?)
 
@@ -122,7 +124,7 @@ class GeocoderMergeSkJob
 
       if failed_rows > 0
         master_job.error_file.attach(
-          io: StringIO.new(combined_error_data),
+          io: combined_error_file,
           filename: "job_#{job.id}_errors.#{error_file_format}",
           content_type: error_content_type
         )
@@ -154,15 +156,40 @@ class GeocoderMergeSkJob
         error_message: "Merge failed: #{e.message}".truncate(255)
       )
       Rails.logger.error "Error processing Job ID: #{job_id}, error: #{e.message}"
+    ensure
+      [combined_output_file, combined_error_file].each do |tempfile|
+        next unless tempfile
+
+        tempfile.close
+        tempfile.unlink
+      end
     end
   end
 
   private
 
-  def parse_tabular_rows(content)
-    first_line = content.to_s.each_line.first.to_s
+  # streams rows from an open worker file without loading the whole file into memory
+  def each_tabular_row(file)
+    first_line = file.gets
+    return if first_line.nil?
+
     detected_col_sep = first_line.include?("\t") ? "\t" : ","
-    CSV.parse(content, headers: true, col_sep: detected_col_sep)
+    file.rewind
+    CSV.new(file, headers: true, col_sep: detected_col_sep).each { |row| yield row }
+  end
+
+  # writes the combined header/rows to a tempfile incrementally instead of buffering an in-memory string
+  def build_tabular_tempfile(headers:, col_sep:)
+    tempfile = Tempfile.new("geocoder_merge")
+    tempfile.binmode
+    tempfile.write(CSV.generate_line(headers, col_sep: col_sep, force_quotes: true))
+
+    csv = CSV.new(tempfile, col_sep: col_sep)
+    yield csv
+
+    tempfile.flush
+    tempfile.rewind
+    tempfile
   end
 
   def failed_output_row?(row)
@@ -173,14 +200,6 @@ class GeocoderMergeSkJob
     full_address = row["fullAddress"].to_s.strip
     score = row["score"].to_s.strip
     result_number.blank? && full_address.blank? && (score.blank? || score == "0")
-  end
-
-  def generate_tabular_with_quoted_headers(headers:, col_sep:)
-    header_line = CSV.generate_line(headers, col_sep: col_sep, force_quotes: true)
-    body = CSV.generate(col_sep: col_sep) do |csv|
-      yield(csv) if block_given?
-    end
-    "#{header_line}#{body}"
   end
 
 end

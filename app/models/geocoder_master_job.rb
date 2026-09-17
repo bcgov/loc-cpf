@@ -122,6 +122,28 @@ class GeocoderMasterJob < MasterJob
     VALID_OUTPUT_FILE_FORMATS.include?(format) ? format : "csv"
   end
 
+  # detects a merge job that should be running but is absent from every Sidekiq state
+  # (e.g. its pod was killed) and restarts it, so a status check never hangs forever.
+  def recover_stale_merge_job!
+    return unless total_jobs.present? && total_jobs != 0 && completed_jobs == total_jobs
+    return if success == false
+    return if result_created_at.present? && output_file.attached?
+
+    merge_job = merge_jobs.order(created_at: :desc).first
+    return check_worker_jobs_completion if merge_job.nil?
+    return if merge_job.completed_at.present?
+    return unless merge_job.missing_from_all_sidekiq_states?
+
+    if merge_job.reach_max_attempts?
+      message = "Merge job exceeded max retry attempts and was abandoned".truncate(255)
+      merge_job.update!(completed_at: Time.now, success: false, error_message: message)
+      update!(completed_at: Time.now, success: false, error_message: message)
+      return
+    end
+
+    merge_job.jid.present? ? merge_job.reenqueue_sidekiq_job : merge_job.enqueue_sidekiq_job
+  end
+
   private
 
   def attachment_download_url(attachment)

@@ -7,7 +7,7 @@ class GeocoderMergeJob < MergeJob
     require "sidekiq/api"
 
     return "running" if Sidekiq::Workers.new.any? { |_p, _t, w| w.dig("payload", "jid") == jid }
-    return "queued" if Sidekiq::Queue.new("geocoder_worker_sk_job").find_job(jid)
+    return "queued" if Sidekiq::Queue.new("geocoder_merge_sk_job").find_job(jid)
     return "scheduled" if Sidekiq::ScheduledSet.new.find_job(jid)
     return "retrying" if Sidekiq::RetrySet.new.find_job(jid)
     return "dead" if Sidekiq::DeadSet.new.find_job(jid)
@@ -46,7 +46,7 @@ class GeocoderMergeJob < MergeJob
     # it also increase the attempt_count for retry limit tracking
     Sidekiq::RetrySet.new.find_job(self.jid)&.delete
     Sidekiq::ScheduledSet.new.find_job(self.jid)&.delete
-    Sidekiq::Queue.new("geocoder_worker_sk_job").find_job(self.jid)&.delete
+    Sidekiq::Queue.new("geocoder_merge_sk_job").find_job(self.jid)&.delete
     self.jid = nil
     self.started_at = nil
     self.completed_at = nil
@@ -69,6 +69,6 @@ class GeocoderMergeJob < MergeJob
   def delete_sidekiq_job
     Sidekiq::RetrySet.new.find_job(self.jid)&.delete
     Sidekiq::ScheduledSet.new.find_job(self.jid)&.delete
-    Sidekiq::Queue.new("geocoder_worker_sk_job").find_job(self.jid)&.delete
+    Sidekiq::Queue.new("geocoder_merge_sk_job").find_job(self.jid)&.delete
   end
 end

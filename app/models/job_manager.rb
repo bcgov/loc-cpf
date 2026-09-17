@@ -86,16 +86,22 @@ class JobManager
 
       # Merge job is expected only after all workers are complete and result not yet created.
       workers_done = master_job.completed_jobs.to_i >= expected_workers
-      merge_missing = master_job.merge_jobs.count == 0
       result_not_created = master_job.result_created_at.blank?
 
-      if workers_done && result_not_created && merge_missing
-        anchor_time = master_job.worker_jobs.maximum(:completed_at) || master_job.updated_at || master_job.completed_at
-        return fail_master_if_past_grace!(
-          master_job,
-          "Merge job missing after all workers completed",
-          anchor_time
-        )
+      if workers_done && result_not_created
+        latest_merge_job = master_job.merge_jobs.order(created_at: :desc).first
+
+        if latest_merge_job.nil?
+          anchor_time = master_job.worker_jobs.maximum(:completed_at) || master_job.updated_at || master_job.completed_at
+          return unless past_grace?(anchor_time)
+
+          return recover_or_fail_merge!(master_job, "Merge job missing after all workers completed")
+        end
+
+        return if latest_merge_job.completed_at.present?
+        return unless latest_merge_job.missing_from_all_sidekiq_states?
+
+        return recover_or_fail_merge!(master_job, "Merge job lost (not queued/scheduled/running) after all workers completed")
       end
     end
 
@@ -109,10 +115,21 @@ class JobManager
     end
 
     def fail_master_if_past_grace!(master_job, message, anchor_time)
-      return if anchor_time.blank?
-      return if (Time.current - anchor_time) < component_check_grace_seconds
+      return unless past_grace?(anchor_time)
 
       fail_master!(master_job, message)
+    end
+
+    def past_grace?(anchor_time)
+      anchor_time.present? && (Time.current - anchor_time) >= component_check_grace_seconds
+    end
+
+    # attempts self-healing recovery of a missing/lost merge job; falls back to failing
+    # the master job if recovery isn't supported or the merge job exhausted its retries.
+    def recover_or_fail_merge!(master_job, message)
+      return fail_master!(master_job, message) unless master_job.respond_to?(:recover_stale_merge_job!)
+
+      master_job.recover_stale_merge_job!
     end
 
     def fail_master!(master_job, message)

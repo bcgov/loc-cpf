@@ -28,6 +28,7 @@ class Api::JobsController < Api::ApplicationController
   def show
     @master_job = @user.master_jobs.find_by(id: params[:id])
     if @master_job.present?
+      recover_stale_merge_job(@master_job)
       render json: @master_job.to_user_json
     else
       render json: { error: "Job not found" }, status: :not_found
@@ -191,6 +192,15 @@ class Api::JobsController < Api::ApplicationController
   end
 
   private
+
+  # keeps a status check from hanging forever if the merge job was never enqueued or crashed mid-run
+  def recover_stale_merge_job(master_job)
+    return unless master_job.respond_to?(:recover_stale_merge_job!)
+
+    master_job.recover_stale_merge_job!
+  rescue => e
+    Rails.logger.warn("recover_stale_merge_job! failed for master_job=#{master_job.id}: #{e.message}")
+  end
 
   def convert_json_input_to_csv(input_data)
     parsed_json = JSON.parse(input_data.to_s)

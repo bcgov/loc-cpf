@@ -33,3 +33,9 @@
 
 # ignore local seaweedfs data
 /seaweedfs
+
+# Test coverage output.
+/coverage
+
+# IDE
+.idea

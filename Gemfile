@@ -62,6 +62,11 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 end
 
+group :test do
+  # Generate JSON coverage for SonarQube Cloud analysis.
+  gem "simplecov", "~> 0.22.0", require: false
+end
+
 gem "devise", "~> 5.0"
 
 gem "sidekiq", "~> 8.1"

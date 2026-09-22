@@ -1,0 +1,73 @@
+name: Pull request checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality_profile:
+    name: Build, test, and analyze
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: cpf_test
+          MYSQL_USER: cpf_test
+          MYSQL_PASSWORD: ci-only-password
+          MYSQL_ROOT_PASSWORD: ci-only-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=cpf_test --password=ci-only-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: mysql2://cpf_test:ci-only-password@127.0.0.1:3306/cpf_test
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Verify application autoloading
+        run: bin/rails zeitwerk:check
+
+      - name: Prepare test database
+        run: bin/rails db:prepare
+
+      - name: Run tests and generate coverage
+        run: bin/rails test
+
+      - name: Run Sonar analysis
+        # Repository secrets are not provided to pull requests from forks.
+        if: >-
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: SonarSource/sonarqube-scan-action@v8.2.1
+        with:
+          args: >-
+            -Dsonar.host.url=${{ vars.SONAR_HOST_URL }}
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=app,lib
+            -Dsonar.tests=test
+            -Dsonar.ruby.coverage.reportPaths=coverage/coverage.json
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -515,6 +515,9 @@ Sidekiq will connect to `redis://localhost:6379/0` by default and process jobs f
 ### 5.4 Submit a test job
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
 python3 sample_client_script.py \
   --env local \
   --apikey <your-api-key> \

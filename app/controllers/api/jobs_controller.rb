@@ -5,6 +5,7 @@ class Api::JobsController < Api::ApplicationController
   DEFAULT_PAGE_SIZE = 25
   MAX_PAGE_SIZE = 100
   VALID_OUTPUT_FILE_FORMATS = %w[csv tsv].freeze
+  MAX_INPUT_FILE_SIZE_BYTES = 100.megabytes
 
   # list all master jobs for the user
   def index
@@ -123,6 +124,8 @@ class Api::JobsController < Api::ApplicationController
         params[:output_data_content_type].presence || (output_file_format == "tsv" ? "text/tsv" : "text/csv")
 
       if params[:input_data].present?
+        check_input_size!(params[:input_data].to_s.bytesize)
+
         if params[:input_data_content_type].present? && params[:input_data_content_type] == "application/json"
           csv_content = convert_json_input_to_csv(params[:input_data])
           @geocoder_master_job.input_data_content_type = "text/csv"
@@ -155,6 +158,7 @@ class Api::JobsController < Api::ApplicationController
         @geocoder_master_job.input_data_content_type = detected_content_type
 
         raw_content = URI.open(url).read
+        check_input_size!(raw_content.bytesize)
         normalized_content = normalize_input_with_sequence_number(raw_content, detected_content_type)
         ext = detected_content_type == "text/tsv" ? "tsv" : "csv"
 
@@ -165,6 +169,7 @@ class Api::JobsController < Api::ApplicationController
         )
       elsif params[:input_data_file].present?
         uploaded = params[:input_data_file]
+        check_input_size!(uploaded.size)
         detected_content_type = params[:input_data_content_type].presence || infer_tabular_content_type_from_filename(uploaded.original_filename.to_s)
         @geocoder_master_job.input_data_content_type = detected_content_type
 
@@ -192,6 +197,12 @@ class Api::JobsController < Api::ApplicationController
   end
 
   private
+
+  def check_input_size!(size_in_bytes)
+    return if size_in_bytes.to_i <= MAX_INPUT_FILE_SIZE_BYTES
+
+    raise Exception, "Input file is too large: #{size_in_bytes} bytes. Maximum allowed size is #{MAX_INPUT_FILE_SIZE_BYTES} bytes (#{MAX_INPUT_FILE_SIZE_BYTES.to_f / 1.megabyte}MB)."
+  end
 
   # keeps a status check from hanging forever if the merge job was never enqueued or crashed mid-run
   def recover_stale_merge_job(master_job)
